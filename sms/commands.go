@@ -5,6 +5,16 @@ import (
 	"strings"
 )
 
+// SubscriptionManager is the interface used by ExecuteCommand for any
+// channel that supports subscribe/unsubscribe commands (SMS, WhatsApp, etc.).
+type SubscriptionManager interface {
+	Subscribe(phone, topic string) error
+	Unsubscribe(phone, topic string) error
+	UnsubscribeAll(phone string) error
+	ListTopics(phone string) []string
+	ListAllTopics() []string
+}
+
 // CommandType identifies the kind of incoming SMS command.
 type CommandType string
 
@@ -74,7 +84,7 @@ func ParseCommand(text string) Command {
 
 const helpText = "Commands: SUB <topic> to subscribe, UNSUB <topic> to unsubscribe, LIST for your topics, TOPICS to list available topics, STOP to stop all messages, HELP for this message."
 
-func missingTopicReply(mgr *Manager, usage string) string {
+func missingTopicReply(mgr SubscriptionManager, usage string) string {
 	topics := mgr.ListAllTopics()
 	if len(topics) == 0 {
 		return fmt.Sprintf("Topic required. Usage: %s", usage)
@@ -84,14 +94,13 @@ func missingTopicReply(mgr *Manager, usage string) string {
 
 // ExecuteCommand runs the parsed command against the manager and returns a
 // human-readable reply message.
-func ExecuteCommand(mgr *Manager, phone string, cmd Command) string {
+func ExecuteCommand(mgr SubscriptionManager, phone string, cmd Command) string {
 	switch cmd.Type {
 	case CmdSubscribe:
 		if cmd.Topic == "" {
 			return missingTopicReply(mgr, "SUB <topic>")
 		}
 		if err := mgr.Subscribe(phone, cmd.Topic); err != nil {
-			mgr.logFn("sms: subscribe error phone=%s topic=%s: %v", phone, cmd.Topic, err)
 			return fmt.Sprintf("Error subscribing to %s. Please try again.", cmd.Topic)
 		}
 		return fmt.Sprintf("Subscribed to %s", cmd.Topic)
@@ -99,13 +108,11 @@ func ExecuteCommand(mgr *Manager, phone string, cmd Command) string {
 	case CmdUnsubscribe:
 		if cmd.Topic == "" {
 			if err := mgr.UnsubscribeAll(phone); err != nil {
-				mgr.logFn("sms: unsubscribe-all error phone=%s: %v", phone, err)
 				return "Error removing subscriptions. Please try again."
 			}
 			return "Unsubscribed from all topics."
 		}
 		if err := mgr.Unsubscribe(phone, cmd.Topic); err != nil {
-			mgr.logFn("sms: unsubscribe error phone=%s topic=%s: %v", phone, cmd.Topic, err)
 			return fmt.Sprintf("Error unsubscribing from %s. Please try again.", cmd.Topic)
 		}
 		return fmt.Sprintf("Unsubscribed from %s", cmd.Topic)
@@ -126,7 +133,6 @@ func ExecuteCommand(mgr *Manager, phone string, cmd Command) string {
 
 	case CmdStop:
 		if err := mgr.UnsubscribeAll(phone); err != nil {
-			mgr.logFn("sms: stop error phone=%s: %v", phone, err)
 			return "Error removing subscriptions. Please try again."
 		}
 		return "All subscriptions removed. Reply S <topic> to resubscribe."

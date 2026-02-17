@@ -1,6 +1,4 @@
-// Package sms handles SMS subscription management, incoming command parsing,
-// and webhook handling for both SMS-gate and Twilio providers.
-package sms
+package whatsapp
 
 import (
 	"fmt"
@@ -9,19 +7,15 @@ import (
 	"waralert/config"
 )
 
-// MessageSender sends a message to a phone number.
-type MessageSender interface {
-	SendMessage(phone, message string) error
-}
-
-// Manager manages SMS subscriptions backed by the application config.
+// Manager manages WhatsApp subscriptions backed by the application config.
+// It implements sms.SubscriptionManager.
 type Manager struct {
 	cfg        *config.Config
 	configPath string
 	logFn      func(string, ...interface{})
 }
 
-// NewManager creates a new subscription manager.
+// NewManager creates a new WhatsApp subscription manager.
 func NewManager(cfg *config.Config, configPath string, logFn func(string, ...interface{})) *Manager {
 	if logFn == nil {
 		logFn = func(string, ...interface{}) {}
@@ -33,18 +27,15 @@ func NewManager(cfg *config.Config, configPath string, logFn func(string, ...int
 	}
 }
 
-// Subscribe adds a topic to a subscriber's list with hierarchy awareness.
-// If the subscriber does not exist, a new active subscriber is created.
-// If an existing topic already covers the new one (parent), the new topic is silently ignored.
-// If the new topic is a parent of existing subtopics, those subtopics are removed.
+// Subscribe adds a topic to a WA subscriber's list with hierarchy awareness.
 func (m *Manager) Subscribe(phone, topic string) error {
 	m.cfg.Lock()
 
 	upper := strings.ToUpper(topic)
 
-	sub := m.cfg.FindSubscriber(phone)
+	sub := m.cfg.FindWASubscriber(phone)
 	if sub == nil {
-		m.cfg.AddSubscriber(config.SubscriberConfig{
+		m.cfg.AddWASubscriber(config.SubscriberConfig{
 			Phone:  phone,
 			Topics: []string{upper},
 			Active: true,
@@ -53,20 +44,16 @@ func (m *Manager) Subscribe(phone, topic string) error {
 		return m.cfg.UnlockAndSave(m.configPath)
 	}
 
-	// Re-activate if previously stopped.
 	sub.Active = true
 
-	// Check if already covered by an exact match or a parent topic.
 	for _, t := range sub.Topics {
 		tu := strings.ToUpper(t)
 		if tu == upper || strings.HasPrefix(upper, tu+"-") {
-			// Already covered — nothing to add.
 			m.cfg.AddTopic(upper)
 			return m.cfg.UnlockAndSave(m.configPath)
 		}
 	}
 
-	// Remove any existing subtopics that the new parent covers.
 	filtered := sub.Topics[:0]
 	for _, t := range sub.Topics {
 		tu := strings.ToUpper(t)
@@ -80,12 +67,11 @@ func (m *Manager) Subscribe(phone, topic string) error {
 	return m.cfg.UnlockAndSave(m.configPath)
 }
 
-// Unsubscribe removes a topic and any subtopics from a subscriber's list.
-// For example, UNSUB FIRE removes FIRE and any FIRE-* subtopics.
+// Unsubscribe removes a topic and subtopics from a WA subscriber's list.
 func (m *Manager) Unsubscribe(phone, topic string) error {
 	m.cfg.Lock()
 
-	sub := m.cfg.FindSubscriber(phone)
+	sub := m.cfg.FindWASubscriber(phone)
 	if sub == nil {
 		m.cfg.Unlock()
 		return fmt.Errorf("subscriber %s not found", phone)
@@ -104,11 +90,11 @@ func (m *Manager) Unsubscribe(phone, topic string) error {
 	return m.cfg.UnlockAndSave(m.configPath)
 }
 
-// UnsubscribeAll deactivates a subscriber, used for the STOP command.
+// UnsubscribeAll deactivates a WA subscriber.
 func (m *Manager) UnsubscribeAll(phone string) error {
 	m.cfg.Lock()
 
-	sub := m.cfg.FindSubscriber(phone)
+	sub := m.cfg.FindWASubscriber(phone)
 	if sub == nil {
 		m.cfg.Unlock()
 		return fmt.Errorf("subscriber %s not found", phone)
@@ -119,12 +105,12 @@ func (m *Manager) UnsubscribeAll(phone string) error {
 	return m.cfg.UnlockAndSave(m.configPath)
 }
 
-// ListTopics returns the subscriber's current topic list, or nil if not found.
+// ListTopics returns the subscriber's current topic list.
 func (m *Manager) ListTopics(phone string) []string {
 	m.cfg.Lock()
 	defer m.cfg.Unlock()
 
-	sub := m.cfg.FindSubscriber(phone)
+	sub := m.cfg.FindWASubscriber(phone)
 	if sub == nil {
 		return nil
 	}

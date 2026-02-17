@@ -137,6 +137,38 @@
         </div>
         {{end}}
     </div>
+    <div class="card">
+        <div class="card-header">
+            <h3>WhatsApp Provider</h3>
+            <span class="badge {{if .WAConnected}}badge-success{{else if .WAPaired}}badge-muted{{else}}badge-muted{{end}}">
+                {{if .WAConnected}}Connected{{else if .WAPaired}}Disconnected{{else}}Not Paired{{end}}
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <label>Database Path</label>
+                <input type="text" id="wa-db-path" value="{{.WhatsApp.DBPath}}" placeholder="whatsapp.db">
+            </div>
+            <div class="form-group">
+                <label>Rate Limit (per minute)</label>
+                <input type="number" id="wa-rate" value="{{.WhatsApp.GlobalRatePerMin}}" min="1">
+            </div>
+            <label><input type="checkbox" id="wa-enabled" {{if .WhatsApp.Enabled}}checked{{end}}> Enabled</label>
+            <div id="wa-qr-container" style="display:none;margin-top:1rem;text-align:center">
+                <p>Scan this QR code with WhatsApp on your phone:</p>
+                <canvas id="wa-qr-canvas" style="display:block;margin:1rem auto;border:1px solid #ddd"></canvas>
+                <p id="wa-pair-status" style="margin-top:0.5rem"></p>
+            </div>
+        </div>
+        {{if .IsAdmin}}
+        <div class="card-footer" style="display:flex;flex-wrap:wrap;gap:0.5rem">
+            <button class="btn" id="wa-pair-btn" onclick="WarAlert.startWAPairing()">Pair Device</button>
+            <button class="btn" onclick="WarAlert.testWhatsApp()">Send Test Message</button>
+            <button class="btn btn-primary" onclick="WarAlert.saveWhatsAppProvider()">Save</button>
+            <button class="btn btn-danger" onclick="WarAlert.logoutWhatsApp()">Logout</button>
+        </div>
+        {{end}}
+    </div>
 </div>
 
 <script>

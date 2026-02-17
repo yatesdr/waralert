@@ -17,6 +17,7 @@ import (
 	"waralert/config"
 	"waralert/plcman"
 	"waralert/sms"
+	"waralert/whatsapp"
 )
 
 // Handlers holds all HTTP handlers for the waralert web UI.
@@ -29,6 +30,8 @@ type Handlers struct {
 	actionReg    *action.Registry
 	smsMgr       *sms.Manager
 	smsHandler   *sms.Handler
+	waClient     *whatsapp.Client
+	waMgr        *whatsapp.Manager
 	auditLog     *audit.Logger
 	sessions     *sessionStore
 	tmpl         *template.Template
@@ -45,6 +48,8 @@ func NewRouter(
 	actionReg *action.Registry,
 	smsMgr *sms.Manager,
 	smsHandler *sms.Handler,
+	waClient *whatsapp.Client,
+	waMgr *whatsapp.Manager,
 	auditLog *audit.Logger,
 ) (chi.Router, func()) {
 	h := &Handlers{
@@ -56,6 +61,8 @@ func NewRouter(
 		actionReg:    actionReg,
 		smsMgr:       smsMgr,
 		smsHandler:   smsHandler,
+		waClient:     waClient,
+		waMgr:        waMgr,
 		auditLog:     auditLog,
 		sessions:     newSessionStore(cfg.Web.SessionSecret),
 		eventHub:     newEventHub(),
@@ -137,6 +144,7 @@ func NewRouter(
 		r.Get("/htmx/sources", h.handleSourcesPartial)
 		r.Get("/htmx/chains", h.handleChainsPartial)
 		r.Get("/htmx/subscribers", h.handleSubscribersPartial)
+		r.Get("/htmx/wa-subscribers", h.handleWASubscribersPartial)
 		r.Get("/htmx/history", h.handleHistoryPartial)
 		r.Get("/htmx/users", h.handleUsersPartial)
 
@@ -187,9 +195,16 @@ func NewRouter(
 			r.Put("/htmx/users/{username}", h.handleUserUpdate)
 			r.Delete("/htmx/users/{username}", h.handleUserDelete)
 
+			// WA subscriber actions
+			r.Post("/htmx/wa-subscribers", h.handleWASubscriberCreate)
+			r.Put("/htmx/wa-subscribers/{phone}", h.handleWASubscriberUpdate)
+			r.Delete("/htmx/wa-subscribers/{phone}", h.handleWASubscriberDelete)
+			r.Patch("/htmx/wa-subscribers/{phone}", h.handleWASubscriberToggle)
+
 			// Provider config
 			r.Post("/htmx/providers/sms", h.handleSMSProviderUpdate)
 			r.Post("/htmx/providers/email", h.handleEmailProviderUpdate)
+			r.Post("/htmx/providers/whatsapp", h.handleWhatsAppProviderUpdate)
 			r.Post("/htmx/providers/sms/test", h.handleSMSTest)
 			r.Post("/htmx/providers/sms/test-connection", h.handleSMSTestConnection)
 			r.Post("/htmx/providers/sms/register-webhook", h.handleSMSRegisterWebhook)
@@ -197,6 +212,9 @@ func NewRouter(
 			r.Post("/htmx/providers/sms/request-cert", h.handleSMSRequestCert)
 			r.Get("/htmx/providers/sms/webhook-status", h.handleSMSWebhookStatus)
 			r.Post("/htmx/providers/email/test", h.handleEmailTest)
+			r.Post("/htmx/providers/whatsapp/test", h.handleWhatsAppTest)
+			r.Post("/htmx/providers/whatsapp/logout", h.handleWhatsAppLogout)
+			r.Get("/api/whatsapp/pair", h.handleWhatsAppPair)
 			r.Post("/htmx/providers/external-url", h.handleExternalURLUpdate)
 		})
 	})

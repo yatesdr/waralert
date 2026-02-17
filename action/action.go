@@ -23,11 +23,12 @@ type ActionParams struct {
 
 // Registry holds all action providers.
 type Registry struct {
-	sms     *SMSProvider
-	email   *EmailProvider
-	webhook *WebhookProvider
-	cfg     *config.Config
-	logFn   func(string, ...interface{})
+	sms      *SMSProvider
+	email    *EmailProvider
+	webhook  *WebhookProvider
+	whatsapp *WhatsAppProvider
+	cfg      *config.Config
+	logFn    func(string, ...interface{})
 }
 
 // NewRegistry creates a new action provider registry.
@@ -42,6 +43,7 @@ func NewRegistry(cfg *config.Config) *Registry {
 	r.sms = NewSMSProvider(cfg, logFn)
 	r.email = NewEmailProvider(cfg, logFn)
 	r.webhook = NewWebhookProvider(logFn)
+	r.whatsapp = NewWhatsAppProvider(cfg, logFn)
 
 	return r
 }
@@ -52,6 +54,7 @@ func (r *Registry) SetLogFunc(fn func(string, ...interface{})) {
 	r.sms.logFn = fn
 	r.email.logFn = fn
 	r.webhook.logFn = fn
+	r.whatsapp.logFn = fn
 }
 
 // Execute dispatches the action block to the appropriate provider.
@@ -68,9 +71,21 @@ func (r *Registry) Execute(block config.BlockConfig, tagReader config.TagReader)
 		return r.email.Execute(params)
 	case "webhook":
 		return r.webhook.Execute(params)
+	case "whatsapp":
+		return r.whatsapp.Execute(params)
 	default:
 		return fmt.Errorf("unknown action type: %s", block.ActionType)
 	}
+}
+
+// SetWhatsAppSender sets the WhatsApp sender on the WhatsApp provider.
+func (r *Registry) SetWhatsAppSender(sender WhatsAppSender) {
+	r.whatsapp.SetSender(sender)
+}
+
+// TestWhatsApp sends a test WhatsApp message.
+func (r *Registry) TestWhatsApp(phone, message string) error {
+	return r.whatsapp.SendWhatsApp(phone, message)
 }
 
 // TestSMS sends a test SMS to the given phone number.

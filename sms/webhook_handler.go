@@ -21,18 +21,20 @@ import (
 // Handler provides HTTP handlers for incoming SMS webhooks.
 type Handler struct {
 	mgr      *Manager
+	sender   MessageSender
 	cfg      *config.Config
 	logFn    func(string, ...interface{})
 	auditLog *audit.Logger
 }
 
 // NewHandler creates a new webhook handler.
-func NewHandler(mgr *Manager, cfg *config.Config, logFn func(string, ...interface{}), auditLog *audit.Logger) *Handler {
+func NewHandler(mgr *Manager, sender MessageSender, cfg *config.Config, logFn func(string, ...interface{}), auditLog *audit.Logger) *Handler {
 	if logFn == nil {
 		logFn = func(string, ...interface{}) {}
 	}
 	return &Handler{
 		mgr:      mgr,
+		sender:   sender,
 		cfg:      cfg,
 		logFn:    logFn,
 		auditLog: auditLog,
@@ -124,8 +126,8 @@ func (h *Handler) HandleSMSGateIncoming(w http.ResponseWriter, r *http.Request) 
 	h.logFn("sms-gate: reply to=%s body=%q", from, reply)
 
 	var sendErr string
-	if h.mgr.smsSender != nil {
-		if err := h.mgr.smsSender.SendSMS(from, reply); err != nil {
+	if h.sender != nil {
+		if err := h.sender.SendMessage(from, reply); err != nil {
 			h.logFn("sms-gate: send reply error: %v", err)
 			sendErr = err.Error()
 		}

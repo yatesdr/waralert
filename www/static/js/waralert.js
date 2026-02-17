@@ -912,7 +912,7 @@ var WarAlert = (function() {
             for (var i = 0; i < blocks.length; i++) {
                 var b = blocks[i];
                 if (b.type === 'action') {
-                    if (b.action_type === 'sms' && b.topic) topics.push(b.topic);
+                    if ((b.action_type === 'sms' || b.action_type === 'whatsapp') && b.topic) topics.push(b.topic);
                     if (b.action_type === 'email' && b.to && b.to.length) topics.push(b.to.join(', '));
                     if (b.action_type === 'webhook' && b.url) topics.push(b.url);
                 }
@@ -1101,6 +1101,7 @@ var WarAlert = (function() {
         } else {
             html += '<select onchange="WarAlert.updateBlockField(' + idx + ', \'action_type\', this.value); WarAlert.renderBlocks()" style="width:auto;font-size:13px;padding:2px 6px">';
             html += '<option value="sms"' + (block.action_type === 'sms' || !block.action_type ? ' selected' : '') + '>Send SMS</option>';
+            html += '<option value="whatsapp"' + (block.action_type === 'whatsapp' ? ' selected' : '') + '>Send WhatsApp</option>';
             html += '<option value="email"' + (block.action_type === 'email' ? ' selected' : '') + '>Send Email</option>';
             html += '<option value="webhook"' + (block.action_type === 'webhook' ? ' selected' : '') + '>Webhook</option>';
             html += '</select>';
@@ -1238,7 +1239,7 @@ var WarAlert = (function() {
     function renderActionBody(block, idx) {
         var html = '<div class="action-fields">';
         var aType = block.action_type || 'sms';
-        if (aType === 'sms') {
+        if (aType === 'sms' || aType === 'whatsapp') {
             html += renderSMSFields(block, idx);
         } else if (aType === 'email') {
             html += renderEmailFields(block, idx);
@@ -1487,6 +1488,169 @@ var WarAlert = (function() {
         _chainBlocks[blockIdx].conditions[condIdx].days = days;
     }
 
+    // --- WhatsApp Provider ---
+
+    function saveWhatsAppProvider() {
+        api.post('/htmx/providers/whatsapp', {
+            enabled: document.getElementById('wa-enabled').checked,
+            db_path: document.getElementById('wa-db-path').value,
+            global_rate_per_min: parseInt(document.getElementById('wa-rate').value) || 30
+        }).then(function() {
+            toast('WhatsApp provider saved', 'success');
+            setTimeout(function() { window.location.reload(); }, 500);
+        }).catch(function(err) { toast(err.message, 'error'); });
+    }
+
+    function startWAPairing() {
+        var container = document.getElementById('wa-qr-container');
+        var canvas = document.getElementById('wa-qr-canvas');
+        var status = document.getElementById('wa-pair-status');
+        var btn = document.getElementById('wa-pair-btn');
+        if (!container || !canvas) return;
+
+        container.style.display = '';
+        if (btn) { btn.disabled = true; btn.textContent = 'Pairing...'; }
+        if (status) status.textContent = 'Waiting for QR code...';
+
+        var es = new EventSource('/api/whatsapp/pair');
+
+        es.addEventListener('qr', function(e) {
+            var code = e.data;
+            if (status) status.textContent = 'Scan the QR code with WhatsApp';
+            // Render QR code using qrcode-generator library
+            if (typeof qrcode !== 'undefined') {
+                var qr = qrcode(0, 'M');
+                qr.addData(code);
+                qr.make();
+                var modules = qr.getModuleCount();
+                var quiet = 4; // QR spec quiet zone
+                var cellSize = Math.max(6, Math.floor(400 / (modules + quiet * 2)));
+                var totalSize = cellSize * (modules + quiet * 2);
+                canvas.width = totalSize;
+                canvas.height = totalSize;
+                var ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(0, 0, totalSize, totalSize);
+                var offset = quiet * cellSize;
+                for (var r = 0; r < modules; r++) {
+                    for (var c = 0; c < modules; c++) {
+                        if (qr.isDark(r, c)) {
+                            ctx.fillStyle = '#000';
+                            ctx.fillRect(offset + c * cellSize, offset + r * cellSize, cellSize, cellSize);
+                        }
+                    }
+                }
+            }
+        });
+
+        es.addEventListener('paired', function() {
+            es.close();
+            if (status) status.textContent = 'Paired successfully!';
+            if (btn) { btn.disabled = false; btn.textContent = 'Pair Device'; }
+            toast('WhatsApp paired successfully', 'success');
+            setTimeout(function() { window.location.reload(); }, 1500);
+        });
+
+        es.addEventListener('error', function(e) {
+            es.close();
+            var msg = e.data || 'Pairing failed';
+            if (status) status.textContent = msg;
+            if (btn) { btn.disabled = false; btn.textContent = 'Pair Device'; }
+            toast('WhatsApp pairing: ' + msg, 'error');
+        });
+
+        es.onerror = function() {
+            es.close();
+            if (status) status.textContent = 'Connection lost';
+            if (btn) { btn.disabled = false; btn.textContent = 'Pair Device'; }
+        };
+    }
+
+    function testWhatsApp() {
+        var phone = prompt('Enter phone number for test WhatsApp message (international format without +):');
+        if (!phone) return;
+        toast('Sending test WhatsApp to ' + phone + '...', 'info');
+        api.post('/htmx/providers/whatsapp/test', { phone: phone, message: 'WarAlert test message' })
+            .then(function() { toast('Test WhatsApp sent successfully to ' + phone, 'success'); })
+            .catch(function(err) { toast('WhatsApp send failed: ' + err.message, 'error'); });
+    }
+
+    function logoutWhatsApp() {
+        if (!confirm('Logout will unpair your WhatsApp device. You will need to re-pair to use WhatsApp alerts.\n\nContinue?')) return;
+        api.post('/htmx/providers/whatsapp/logout').then(function() {
+            toast('WhatsApp device logged out', 'success');
+            setTimeout(function() { window.location.reload(); }, 500);
+        }).catch(function(err) { toast('Logout failed: ' + err.message, 'error'); });
+    }
+
+    // --- WA Subscriber CRUD ---
+
+    function createWASubscriber() {
+        var phone = document.getElementById('wa-sub-phone').value.trim();
+        if (!phone) { toast('Phone number is required', 'error'); return; }
+        var topics = getCheckedValues('wa-sub-topics-group');
+        api.post('/htmx/wa-subscribers', {
+            phone: phone,
+            name: document.getElementById('wa-sub-name').value.trim(),
+            topics: topics,
+            active: true
+        }).then(function() {
+            hideModal('wa-sub-modal');
+            toast('WA subscriber added', 'success');
+            htmx.ajax('GET', '/htmx/wa-subscribers', '#wa-subscriber-list');
+        }).catch(function(err) { toast(err.message, 'error'); });
+    }
+
+    function editWASubscriber(phone, name, topicsStr) {
+        document.getElementById('wa-sub-edit-phone').value = phone;
+        document.getElementById('wa-sub-edit-name').value = name;
+        var topics = topicsStr ? topicsStr.split(',') : [];
+        var container = document.getElementById('wa-sub-edit-topics-selected');
+        if (container) {
+            var html = '';
+            for (var i = 0; i < topics.length; i++) {
+                if (topics[i]) html += editSubTopicBadgeHTML(topics[i]);
+            }
+            container.innerHTML = html;
+        }
+        var picker = document.getElementById('wa-sub-edit-topic-picker');
+        if (picker) picker.value = '';
+        showModal('wa-sub-edit-modal');
+    }
+
+    function addEditWASubTopic(selectEl) {
+        var topic = selectEl.value;
+        if (!topic) return;
+        selectEl.value = '';
+        var container = document.getElementById('wa-sub-edit-topics-selected');
+        if (!container) return;
+        if (container.querySelector('[data-topic="' + topic + '"]')) return;
+        container.insertAdjacentHTML('beforeend', editSubTopicBadgeHTML(topic));
+    }
+
+    function getEditWASubTopics() {
+        var container = document.getElementById('wa-sub-edit-topics-selected');
+        if (!container) return [];
+        var badges = container.querySelectorAll('[data-topic]');
+        var topics = [];
+        for (var i = 0; i < badges.length; i++) topics.push(badges[i].dataset.topic);
+        return topics;
+    }
+
+    function saveWASubscriber() {
+        var phone = document.getElementById('wa-sub-edit-phone').value;
+        var name = document.getElementById('wa-sub-edit-name').value.trim();
+        var topics = getEditWASubTopics();
+        api.put('/htmx/wa-subscribers/' + encodeURIComponent(phone), {
+            name: name,
+            topics: topics
+        }).then(function() {
+            hideModal('wa-sub-edit-modal');
+            toast('WA subscriber updated', 'success');
+            htmx.ajax('GET', '/htmx/wa-subscribers', '#wa-subscriber-list');
+        }).catch(function(err) { toast(err.message, 'error'); });
+    }
+
     // Auto-init theme
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initTheme);
@@ -1568,17 +1732,27 @@ var WarAlert = (function() {
         // Providers
         saveSMSProvider: saveSMSProvider,
         saveEmailProvider: saveEmailProvider,
+        saveWhatsAppProvider: saveWhatsAppProvider,
         toggleSMSType: toggleSMSType,
         toggleSMSMode: toggleSMSMode,
         testSMSConnection: testSMSConnection,
         testSMS: testSMS,
         testEmail: testEmail,
+        testWhatsApp: testWhatsApp,
+        startWAPairing: startWAPairing,
+        logoutWhatsApp: logoutWhatsApp,
         copyWebhookURL: copyWebhookURL,
         registerSMSWebhook: registerSMSWebhook,
         cleanSMSWebhooks: cleanSMSWebhooks,
         requestSMSCert: requestSMSCert,
         checkWebhookStatus: checkWebhookStatus,
         saveWebhookHost: saveWebhookHost,
-        selectExternalIP: selectExternalIP
+        selectExternalIP: selectExternalIP,
+
+        // WA Subscribers
+        createWASubscriber: createWASubscriber,
+        editWASubscriber: editWASubscriber,
+        saveWASubscriber: saveWASubscriber,
+        addEditWASubTopic: addEditWASubTopic
     };
 })();

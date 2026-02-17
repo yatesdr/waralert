@@ -82,8 +82,9 @@ type Config struct {
 	AuditLog    string            `yaml:"audit_log"`
 	Providers   ProvidersConfig   `yaml:"providers"`
 	Topics      []string          `yaml:"topics"`
-	Subscribers []SubscriberConfig `yaml:"subscribers"`
-	Chains      []ChainConfig     `yaml:"chains"`
+	Subscribers   []SubscriberConfig `yaml:"subscribers"`
+	WASubscribers []SubscriberConfig `yaml:"wa_subscribers"`
+	Chains        []ChainConfig     `yaml:"chains"`
 
 	dataMu          sync.Mutex                     `yaml:"-"`
 	changeListeners map[ConfigListenerID]func()    `yaml:"-"`
@@ -115,8 +116,16 @@ const (
 
 // ProvidersConfig holds alert provider configurations.
 type ProvidersConfig struct {
-	SMS   SMSProviderConfig   `yaml:"sms"`
-	Email EmailProviderConfig `yaml:"email"`
+	SMS      SMSProviderConfig      `yaml:"sms"`
+	Email    EmailProviderConfig    `yaml:"email"`
+	WhatsApp WhatsAppProviderConfig `yaml:"whatsapp"`
+}
+
+// WhatsAppProviderConfig holds WhatsApp provider configuration.
+type WhatsAppProviderConfig struct {
+	Enabled          bool   `yaml:"enabled" json:"enabled"`
+	DBPath           string `yaml:"db_path,omitempty" json:"db_path,omitempty"`
+	GlobalRatePerMin int    `yaml:"global_rate_per_min,omitempty" json:"global_rate_per_min,omitempty"`
 }
 
 // SMSProviderConfig holds SMS provider configuration.
@@ -235,10 +244,15 @@ func DefaultConfig() *Config {
 				Port:   587,
 				UseTLS: true,
 			},
+			WhatsApp: WhatsAppProviderConfig{
+				DBPath:           "whatsapp.db",
+				GlobalRatePerMin: 30,
+			},
 		},
-		Topics:      []string{},
-		Subscribers: []SubscriberConfig{},
-		Chains:      []ChainConfig{},
+		Topics:        []string{},
+		Subscribers:   []SubscriberConfig{},
+		WASubscribers: []SubscriberConfig{},
+		Chains:        []ChainConfig{},
 	}
 }
 
@@ -609,6 +623,64 @@ func (c *Config) SubscribersForTopic(topic string) []string {
 	upper := strings.ToUpper(topic)
 	var phones []string
 	for _, sub := range c.Subscribers {
+		if !sub.Active {
+			continue
+		}
+		for _, t := range sub.Topics {
+			tu := strings.ToUpper(t)
+			if tu == upper || strings.HasPrefix(upper, tu+"-") {
+				phones = append(phones, sub.Phone)
+				break
+			}
+		}
+	}
+	return phones
+}
+
+// --- WhatsApp subscriber CRUD ---
+
+// FindWASubscriber returns the WA subscriber with the given phone, or nil.
+func (c *Config) FindWASubscriber(phone string) *SubscriberConfig {
+	for i := range c.WASubscribers {
+		if c.WASubscribers[i].Phone == phone {
+			return &c.WASubscribers[i]
+		}
+	}
+	return nil
+}
+
+// AddWASubscriber adds a new WA subscriber.
+func (c *Config) AddWASubscriber(sub SubscriberConfig) {
+	c.WASubscribers = append(c.WASubscribers, sub)
+}
+
+// RemoveWASubscriber removes a WA subscriber by phone.
+func (c *Config) RemoveWASubscriber(phone string) bool {
+	for i, s := range c.WASubscribers {
+		if s.Phone == phone {
+			c.WASubscribers = append(c.WASubscribers[:i], c.WASubscribers[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// UpdateWASubscriber updates an existing WA subscriber by phone.
+func (c *Config) UpdateWASubscriber(phone string, updated SubscriberConfig) bool {
+	for i, s := range c.WASubscribers {
+		if s.Phone == phone {
+			c.WASubscribers[i] = updated
+			return true
+		}
+	}
+	return false
+}
+
+// WASubscribersForTopic returns all active WA subscriber phone numbers subscribed to a topic.
+func (c *Config) WASubscribersForTopic(topic string) []string {
+	upper := strings.ToUpper(topic)
+	var phones []string
+	for _, sub := range c.WASubscribers {
 		if !sub.Active {
 			continue
 		}

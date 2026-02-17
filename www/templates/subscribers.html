@@ -27,6 +27,17 @@
 </div>
 
 <div class="page-header" style="margin-top:2rem">
+    <h2>WhatsApp Subscribers</h2>
+    {{if .IsAdmin}}
+    <button class="btn btn-primary" onclick="WarAlert.showModal('wa-sub-modal')">Add WA Subscriber</button>
+    {{end}}
+</div>
+
+<div id="wa-subscriber-list" hx-get="/htmx/wa-subscribers" hx-trigger="every 10s" hx-swap="innerHTML">
+    {{template "wa_subscriber_table.html" .}}
+</div>
+
+<div class="page-header" style="margin-top:2rem">
     <h2>Email Subscribers</h2>
 </div>
 {{if .EmailTargets}}
@@ -141,6 +152,75 @@
         <div class="modal-footer">
             <button class="btn" onclick="WarAlert.hideModal('sub-edit-modal')">Cancel</button>
             <button class="btn btn-primary" onclick="WarAlert.saveSubscriber()">Save</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="wa-sub-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add WhatsApp Subscriber</h3>
+            <button class="modal-close" onclick="WarAlert.hideModal('wa-sub-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="tel" id="wa-sub-phone" placeholder="5215551234567">
+                <small>Use international format without + (e.g. 5215551234567 for Mexico)</small>
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="wa-sub-name" placeholder="Juan Garcia">
+            </div>
+            <div class="form-group">
+                <label>Topics</label>
+                {{if .Topics}}
+                <div class="checkbox-group" id="wa-sub-topics-group">
+                    {{range .Topics}}
+                    <label class="checkbox-label"><input type="checkbox" value="{{.}}"> {{.}}</label>
+                    {{end}}
+                </div>
+                {{else}}
+                <small>No topics configured.</small>
+                {{end}}
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('wa-sub-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="WarAlert.createWASubscriber()">Add</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="wa-sub-edit-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit WhatsApp Subscriber</h3>
+            <button class="modal-close" onclick="WarAlert.hideModal('wa-sub-edit-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="tel" id="wa-sub-edit-phone" readonly>
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="wa-sub-edit-name">
+            </div>
+            <div class="form-group">
+                <label>Topics</label>
+                <div id="wa-sub-edit-topics-selected" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.5rem"></div>
+                <select id="wa-sub-edit-topic-picker" onchange="WarAlert.addEditWASubTopic(this)">
+                    <option value="">Add a topic...</option>
+                    {{range .Topics}}
+                    <option value="{{.}}">{{.}}</option>
+                    {{end}}
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('wa-sub-edit-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="WarAlert.saveWASubscriber()">Save</button>
         </div>
     </div>
 </div>

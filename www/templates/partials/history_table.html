@@ -18,7 +18,14 @@
             {{if eq .EventType "sms_incoming"}}
             <td><span class="badge badge-info">SMS Received</span></td>
             <td>
-                <strong>From:</strong> {{.From}}<br>
+                <strong>From:</strong> {{.From}}{{if .FromName}} ({{.FromName}}){{end}}<br>
+                <strong>Command:</strong> {{.Command}}<br>
+                {{if .Reply}}<strong>Reply:</strong> {{.Reply}}{{end}}
+            </td>
+            {{else if eq .EventType "wa_incoming"}}
+            <td><span class="badge badge-info">WA Received</span></td>
+            <td>
+                <strong>From:</strong> {{.From}}{{if .FromName}} ({{.FromName}}){{end}}<br>
                 <strong>Command:</strong> {{.Command}}<br>
                 {{if .Reply}}<strong>Reply:</strong> {{.Reply}}{{end}}
             </td>

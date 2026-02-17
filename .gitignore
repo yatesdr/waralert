@@ -9,6 +9,9 @@ waralert.yaml
 cert.pem
 key.pem
 
+# WhatsApp session database
+whatsapp.db
+
 # Runtime logs
 audit.log
 

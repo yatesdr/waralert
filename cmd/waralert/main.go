@@ -18,6 +18,7 @@ import (
 	"waralert/config"
 	"waralert/plcman"
 	"waralert/sms"
+	"waralert/whatsapp"
 	"waralert/www"
 )
 
@@ -129,8 +130,33 @@ func main() {
 
 	// Initialize SMS subscription manager
 	smsSender := &smsSenderAdapter{registry: actionReg}
-	smsMgr := sms.NewManager(cfg, *configPath, smsSender, logFn)
-	smsHandler := sms.NewHandler(smsMgr, cfg, logFn, auditLog)
+	smsMgr := sms.NewManager(cfg, *configPath, logFn)
+	smsHandler := sms.NewHandler(smsMgr, smsSender, cfg, logFn, auditLog)
+
+	// Initialize WhatsApp client (always, so pairing UI works even before enabling)
+	waDBPath := cfg.Providers.WhatsApp.DBPath
+	if waDBPath == "" {
+		waDBPath = "whatsapp.db"
+	}
+	waClient, err := whatsapp.NewClient(waDBPath, logFn)
+	var waMgr *whatsapp.Manager
+	if err != nil {
+		log.Printf("whatsapp: init failed: %v (continuing without WhatsApp)", err)
+		waClient = nil
+	} else {
+		actionReg.SetWhatsAppSender(waClient)
+		waMgr = whatsapp.NewManager(cfg, *configPath, logFn)
+		waHandler := whatsapp.NewHandler(waMgr, waClient, logFn, auditLog)
+		waClient.SetMessageHandler(waHandler.HandleIncoming)
+		if waClient.IsPaired() {
+			if err := waClient.Connect(); err != nil {
+				log.Printf("whatsapp: connect failed: %v", err)
+			}
+		} else {
+			log.Println("whatsapp: not paired, use the web UI to pair")
+		}
+		defer waClient.Disconnect()
+	}
 
 	// Register config change listener for hot-reload
 	cfg.AddOnChangeListener(func() {
@@ -158,7 +184,7 @@ func main() {
 	defer stopAutoRenew()
 
 	// Create web server
-	router, stopWeb := www.NewRouter(cfg, *configPath, certReloader, plcMgr, chainMgr, actionReg, smsMgr, smsHandler, auditLog)
+	router, stopWeb := www.NewRouter(cfg, *configPath, certReloader, plcMgr, chainMgr, actionReg, smsMgr, smsHandler, waClient, waMgr, auditLog)
 	defer stopWeb()
 
 	addr := fmt.Sprintf("%s:%d", cfg.Web.Host, cfg.Web.Port)
@@ -224,11 +250,11 @@ func (e *auditActionExecutor) Execute(block config.BlockConfig, tagReader config
 	return err
 }
 
-// smsSenderAdapter adapts action.Registry to the sms.SMSSender interface.
+// smsSenderAdapter adapts action.Registry to the sms.MessageSender interface.
 type smsSenderAdapter struct {
 	registry *action.Registry
 }
 
-func (a *smsSenderAdapter) SendSMS(phone, message string) error {
+func (a *smsSenderAdapter) SendMessage(phone, message string) error {
 	return a.registry.TestSMS(phone, message)
 }

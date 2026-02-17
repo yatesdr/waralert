@@ -161,6 +161,7 @@ func (h *Handlers) handleSubscribersPage(w http.ResponseWriter, r *http.Request)
 	data := h.getUserInfo(r)
 	data["Page"] = "subscribers"
 	data["Subscribers"] = h.cfg.Subscribers
+	data["WASubscribers"] = h.cfg.WASubscribers
 	data["Topics"] = h.cfg.Topics
 	data["EmailTargets"] = h.getEmailTargets()
 	data["WebhookTargets"] = h.getWebhookTargets()
@@ -172,6 +173,9 @@ func (h *Handlers) handleProvidersPage(w http.ResponseWriter, r *http.Request) {
 	data["Page"] = "providers"
 	data["SMS"] = h.cfg.Providers.SMS
 	data["Email"] = h.cfg.Providers.Email
+	data["WhatsApp"] = h.cfg.Providers.WhatsApp
+	data["WAConnected"] = h.waClient != nil && h.waClient.IsConnected()
+	data["WAPaired"] = h.waClient != nil && h.waClient.IsPaired()
 	data["ExternalURL"] = h.cfg.Web.ExternalURL
 	data["DetectedIPs"] = detectLocalIPs()
 	data["WebPort"] = h.cfg.Web.Port
@@ -264,6 +268,15 @@ func (h *Handlers) handleSubscribersPartial(w http.ResponseWriter, r *http.Reque
 	}
 	data["IsAdmin"] = h.getUserInfo(r)["IsAdmin"]
 	h.renderTemplate(w, "subscriber_table.html", data)
+}
+
+func (h *Handlers) handleWASubscribersPartial(w http.ResponseWriter, r *http.Request) {
+	data := map[string]interface{}{
+		"WASubscribers": h.cfg.WASubscribers,
+		"Topics":        h.cfg.Topics,
+	}
+	data["IsAdmin"] = h.getUserInfo(r)["IsAdmin"]
+	h.renderTemplate(w, "wa_subscriber_table.html", data)
 }
 
 func (h *Handlers) handleHistoryPartial(w http.ResponseWriter, r *http.Request) {

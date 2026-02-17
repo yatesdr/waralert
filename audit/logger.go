@@ -21,10 +21,11 @@ type Entry struct {
 	Message    string    `json:"message,omitempty"`
 	Success    bool      `json:"success"`
 	Error      string    `json:"error,omitempty"`
-	// SMS incoming fields
-	From    string `json:"from,omitempty"`
-	Command string `json:"command,omitempty"`
-	Reply   string `json:"reply,omitempty"`
+	// Incoming message fields
+	From     string `json:"from,omitempty"`
+	FromName string `json:"from_name,omitempty"`
+	Command  string `json:"command,omitempty"`
+	Reply    string `json:"reply,omitempty"`
 }
 
 // Logger writes audit entries to a JSON-lines file and maintains a ring buffer.

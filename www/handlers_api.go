@@ -868,3 +868,170 @@ func (h *Handlers) handleSubscriberUpdate(w http.ResponseWriter, r *http.Request
 	h.handleSubscribersPartial(w, r)
 }
 
+// --- WhatsApp Subscriber API ---
+
+func (h *Handlers) handleWASubscriberCreate(w http.ResponseWriter, r *http.Request) {
+	var sub config.SubscriberConfig
+	if err := json.NewDecoder(r.Body).Decode(&sub); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	if sub.Phone == "" {
+		http.Error(w, "Phone number is required", http.StatusBadRequest)
+		return
+	}
+
+	h.cfg.Lock()
+	if h.cfg.FindWASubscriber(sub.Phone) != nil {
+		h.cfg.Unlock()
+		http.Error(w, "WA subscriber already exists", http.StatusConflict)
+		return
+	}
+	sub.Active = true
+	h.cfg.AddWASubscriber(sub)
+	h.cfg.UnlockAndSave(h.configPath)
+
+	h.handleWASubscribersPartial(w, r)
+}
+
+func (h *Handlers) handleWASubscriberUpdate(w http.ResponseWriter, r *http.Request) {
+	phone, _ := url.PathUnescape(chi.URLParam(r, "phone"))
+	var req struct {
+		Name   string   `json:"name"`
+		Topics []string `json:"topics"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	h.cfg.Lock()
+	sub := h.cfg.FindWASubscriber(phone)
+	if sub == nil {
+		h.cfg.Unlock()
+		http.Error(w, "WA subscriber not found", http.StatusNotFound)
+		return
+	}
+	sub.Name = req.Name
+	sub.Topics = req.Topics
+	h.cfg.UnlockAndSave(h.configPath)
+
+	h.handleWASubscribersPartial(w, r)
+}
+
+func (h *Handlers) handleWASubscriberDelete(w http.ResponseWriter, r *http.Request) {
+	phone, _ := url.PathUnescape(chi.URLParam(r, "phone"))
+
+	h.cfg.Lock()
+	h.cfg.RemoveWASubscriber(phone)
+	h.cfg.UnlockAndSave(h.configPath)
+
+	h.handleWASubscribersPartial(w, r)
+}
+
+func (h *Handlers) handleWASubscriberToggle(w http.ResponseWriter, r *http.Request) {
+	phone, _ := url.PathUnescape(chi.URLParam(r, "phone"))
+
+	h.cfg.Lock()
+	sub := h.cfg.FindWASubscriber(phone)
+	if sub != nil {
+		sub.Active = !sub.Active
+	}
+	h.cfg.UnlockAndSave(h.configPath)
+
+	h.handleWASubscribersPartial(w, r)
+}
+
+// --- WhatsApp Provider API ---
+
+func (h *Handlers) handleWhatsAppProviderUpdate(w http.ResponseWriter, r *http.Request) {
+	var waCfg config.WhatsAppProviderConfig
+	if err := json.NewDecoder(r.Body).Decode(&waCfg); err != nil {
+		http.Error(w, "Invalid JSON: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	h.cfg.Lock()
+	h.cfg.Providers.WhatsApp = waCfg
+	h.cfg.UnlockAndSave(h.configPath)
+
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, "WhatsApp provider updated")
+}
+
+func (h *Handlers) handleWhatsAppTest(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Phone   string `json:"phone"`
+		Message string `json:"message"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	if req.Phone == "" {
+		http.Error(w, "Phone number is required", http.StatusBadRequest)
+		return
+	}
+	if req.Message == "" {
+		req.Message = "WarAlert test message"
+	}
+
+	if err := h.actionReg.TestWhatsApp(req.Phone, req.Message); err != nil {
+		http.Error(w, "WhatsApp send failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprint(w, "Test WhatsApp message sent")
+}
+
+func (h *Handlers) handleWhatsAppLogout(w http.ResponseWriter, r *http.Request) {
+	if h.waClient == nil {
+		http.Error(w, "WhatsApp client not initialized", http.StatusBadRequest)
+		return
+	}
+	if err := h.waClient.Logout(); err != nil {
+		http.Error(w, "Logout failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fmt.Fprint(w, "WhatsApp device logged out")
+}
+
+func (h *Handlers) handleWhatsAppPair(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Always set SSE headers so EventSource can parse error events.
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	if h.waClient == nil {
+		fmt.Fprintf(w, "event: error\ndata: WhatsApp client not initialized — restart with WhatsApp enabled\n\n")
+		flusher.Flush()
+		return
+	}
+
+	ctx := r.Context()
+	qrChan, err := h.waClient.StartPairing(ctx)
+	if err != nil {
+		fmt.Fprintf(w, "event: error\ndata: %s\n\n", err.Error())
+		flusher.Flush()
+		return
+	}
+
+	for code := range qrChan {
+		if code == "" {
+			fmt.Fprintf(w, "event: paired\ndata: success\n\n")
+			flusher.Flush()
+			return
+		}
+		fmt.Fprintf(w, "event: qr\ndata: %s\n\n", code)
+		flusher.Flush()
+	}
+
+	fmt.Fprintf(w, "event: error\ndata: pairing timed out\n\n")
+	flusher.Flush()
+}
+

@@ -1,6 +1,6 @@
 # WarAlert
 
-Companion app to [WarLink](https://github.com/yatesdr/warlink) that converts process data into SMS and email alerts based on configurable conditions, timers, and schedules. Monitors PLC tags, ping targets, and WarLink sources through alert chains with gate logic, then delivers notifications via SMS, email, and webhooks.
+Companion app to [WarLink](https://github.com/yatesdr/warlink) that converts process data into SMS, email, and WhatsApp alerts based on configurable conditions, timers, and schedules. Monitors PLC tags, ping targets, and WarLink sources through alert chains with gate logic, then delivers notifications via SMS, email, WhatsApp, and webhooks.
 
 ## Alert Chains / Main view
 <img width="1191" height="502" alt="image" src="https://github.com/user-attachments/assets/bc4baa42-a89e-4695-8ed0-c2dec35fbe00" />
@@ -51,7 +51,15 @@ Go to the **Sources** page and add a source:
 
 Point the WarLink source URL at your WarLink instance (e.g. `http://192.168.1.100:8080/api`). WarLink handles all PLC communication — WarAlert reads tag values through the WarLink REST API.
 
-### 3. Configure SMS Provider (SMS-Gate Local Mode)
+### 3. Configure a Messaging Provider
+
+WarAlert supports multiple notification channels. You can enable one or more:
+
+- **SMS** via SMS-Gate (local or cloud mode)
+- **WhatsApp** via built-in WhatsApp Web client
+- **Email** via SMTP
+
+#### SMS (SMS-Gate Local Mode)
 
 See [SMS-Gate Setup](docs/sms-gate-setup.md) for the full walkthrough. The short version:
 
@@ -62,6 +70,16 @@ See [SMS-Gate Setup](docs/sms-gate-setup.md) for the full walkthrough. The short
 5. Click **Request Certificate** to get a trusted TLS cert from the SMS-Gate CA
 6. Click **Register Webhook** so SMS-Gate can deliver incoming messages
 7. Save the provider config
+
+#### WhatsApp
+
+See [WhatsApp Setup](docs/whatsapp-setup.md) for the full walkthrough. The short version:
+
+1. Go to **Providers** and find the **WhatsApp** card
+2. Click **Pair Device** and scan the QR code with WhatsApp on your phone
+3. Check **Enabled** and click **Save**
+
+WhatsApp subscribers manage their own subscriptions by messaging commands to the paired number, using the same commands as SMS (`SUB`, `UNSUB`, `LIST`, etc.).
 
 ### 4. Create an Alert Chain
 
@@ -74,9 +92,9 @@ See [Chains and Gates](docs/chains-and-gates.md) for full details. A chain consi
 
 The chain monitors continuously. When the gate condition transitions from false to true (rising edge), it fires the action blocks.
 
-### 5. SMS Subscriber Commands
+### 5. Subscriber Commands
 
-Subscribers manage their own subscriptions by texting commands to the SMS-Gate phone number. See [SMS Commands](docs/sms-commands.md) for the full reference.
+Subscribers manage their own subscriptions by sending commands to the SMS-Gate phone number (SMS) or the paired WhatsApp number. All commands work identically on both channels. See [SMS Commands](docs/sms-commands.md) for the full reference.
 
 | Command | Action |
 |---------|--------|
@@ -150,8 +168,21 @@ See [TLS Certificates](docs/tls-certificates.md) for details.
 | [SMS-Gate Setup](docs/sms-gate-setup.md) | Setting up SMS-Gate local mode, webhooks, and certificates |
 | [Chains and Gates](docs/chains-and-gates.md) | Alert chain logic, gate conditions, actions, and timing |
 | [SMS Commands](docs/sms-commands.md) | SMS command reference for subscribers |
+| [WhatsApp Setup](docs/whatsapp-setup.md) | WhatsApp pairing, configuration, and important usage warnings |
 | [TLS Certificates](docs/tls-certificates.md) | Certificate management, hot-reload, and auto-renewal |
 | [Sources](docs/sources.md) | WarLink and ping source configuration |
+
+## Acknowledgements
+
+WarAlert is built on the work of several excellent open-source projects. Thanks to their developers:
+
+| Library | Author | Purpose |
+|---------|--------|---------|
+| [whatsmeow](https://github.com/tulir/whatsmeow) | Tulir Asokan | WhatsApp Web client library for Go |
+| [chi](https://github.com/go-chi/chi) | Peter Kieltyka | Lightweight HTTP router |
+| [gorilla/sessions](https://github.com/gorilla/sessions) | Gorilla Web Toolkit | Session management |
+| [modernc.org/sqlite](https://gitlab.com/cznic/sqlite) | Jan Mercl | Pure-Go SQLite driver (no CGO) |
+| [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) | Kazuhiko Arase | Client-side QR code rendering |
 
 ## License
 
