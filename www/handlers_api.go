@@ -3,12 +3,14 @@ package www
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
+	"waralert/audit"
 	"waralert/config"
 )
 
@@ -119,9 +121,32 @@ func (h *Handlers) handleChainTestFire(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := c.TestFire()
 	if err != nil {
+		h.auditLog.Log(audit.Entry{
+			EventType:  "action",
+			ActionType: "test_fire",
+			Chain:      name,
+			Message:    err.Error(),
+			Success:    false,
+			Error:      err.Error(),
+		})
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	msg := fmt.Sprintf("%d action(s) fired, %d gate(s) bypassed", result.ActionsFired, result.GatesPassed)
+	success := len(result.Errors) == 0
+	entry := audit.Entry{
+		EventType:  "action",
+		ActionType: "test_fire",
+		Chain:      name,
+		Message:    msg,
+		Success:    success,
+	}
+	if !success {
+		entry.Error = strings.Join(result.Errors, "; ")
+	}
+	h.auditLog.Log(entry)
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(result)
 }
@@ -366,9 +391,22 @@ func (h *Handlers) handleSMSTestConnection(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := h.actionReg.TestSMSConnection(req.Mode, req.BaseURL, req.Username, req.Password); err != nil {
+		h.auditLog.Log(audit.Entry{
+			EventType:  "admin",
+			ActionType: "sms_connection_test",
+			Message:    "Connection test to " + req.BaseURL,
+			Success:    false,
+			Error:      err.Error(),
+		})
 		http.Error(w, "Connection failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	h.auditLog.Log(audit.Entry{
+		EventType:  "admin",
+		ActionType: "sms_connection_test",
+		Message:    "Connection test to " + req.BaseURL,
+		Success:    true,
+	})
 	fmt.Fprint(w, "Connection successful")
 }
 
@@ -390,9 +428,24 @@ func (h *Handlers) handleSMSTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.actionReg.TestSMS(req.Phone, req.Message); err != nil {
+		h.auditLog.Log(audit.Entry{
+			EventType:  "action",
+			ActionType: "sms_test",
+			Recipients: []string{req.Phone},
+			Message:    req.Message,
+			Success:    false,
+			Error:      err.Error(),
+		})
 		http.Error(w, "SMS send failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	h.auditLog.Log(audit.Entry{
+		EventType:  "action",
+		ActionType: "sms_test",
+		Recipients: []string{req.Phone},
+		Message:    req.Message,
+		Success:    true,
+	})
 	fmt.Fprint(w, "Test SMS sent")
 }
 
@@ -418,9 +471,24 @@ func (h *Handlers) handleEmailTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.actionReg.TestEmail(req.To, req.Subject, req.Body); err != nil {
+		h.auditLog.Log(audit.Entry{
+			EventType:  "action",
+			ActionType: "email_test",
+			Recipients: req.To,
+			Message:    req.Subject,
+			Success:    false,
+			Error:      err.Error(),
+		})
 		http.Error(w, "Email send failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	h.auditLog.Log(audit.Entry{
+		EventType:  "action",
+		ActionType: "email_test",
+		Recipients: req.To,
+		Message:    req.Subject,
+		Success:    true,
+	})
 	fmt.Fprint(w, "Test email sent")
 }
 
@@ -605,25 +673,141 @@ func (h *Handlers) handlePLCTagList(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(tags)
 }
 
+// --- SMS Certificate Request ---
+
+func (h *Handlers) handleSMSRequestCert(w http.ResponseWriter, r *http.Request) {
+	extURL := h.cfg.Web.ExternalURL
+	if extURL == "" {
+		http.Error(w, "External URL is not configured. Set your LAN address first.", http.StatusBadRequest)
+		return
+	}
+	parsed, err := url.Parse(extURL)
+	if err != nil {
+		http.Error(w, "Invalid external URL: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	ip := parsed.Hostname()
+	if net.ParseIP(ip) == nil {
+		http.Error(w, "External URL must use an IP address (not a hostname)", http.StatusBadRequest)
+		return
+	}
+
+	if err := requestSMSGateCert(ip, h.certReloader.certFile, h.certReloader.keyFile); err != nil {
+		h.auditLog.Log(audit.Entry{
+			EventType:  "admin",
+			ActionType: "cert_request",
+			Message:    "TLS certificate request for " + ip,
+			Success:    false,
+			Error:      err.Error(),
+		})
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if err := h.certReloader.Reload(); err != nil {
+		h.auditLog.Log(audit.Entry{
+			EventType:  "admin",
+			ActionType: "cert_request",
+			Message:    "Certificate saved but reload failed",
+			Success:    false,
+			Error:      err.Error(),
+		})
+		http.Error(w, "Certificate saved but reload failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	expiry := h.certReloader.NotAfter().Format("2006-01-02")
+	h.auditLog.Log(audit.Entry{
+		EventType:  "admin",
+		ActionType: "cert_request",
+		Message:    fmt.Sprintf("TLS certificate issued for %s, expires %s", ip, expiry),
+		Success:    true,
+	})
+	fmt.Fprintf(w, "Certificate issued and active (expires %s). No restart required.", expiry)
+}
+
 // --- SMS Webhook Registration ---
 
 func (h *Handlers) handleSMSRegisterWebhook(w http.ResponseWriter, r *http.Request) {
-	// Compute webhook URL from request.
-	scheme := r.Header.Get("X-Forwarded-Proto")
-	if scheme == "" {
-		if r.TLS != nil {
-			scheme = "https"
-		} else {
-			scheme = "http"
+	webhookURL := h.webhookURL(r)
+
+	// Delete all existing webhooks before registering.
+	if existing, err := h.actionReg.GetSMSWebhooks(); err == nil {
+		for _, wh := range existing {
+			if id, _ := wh["id"].(string); id != "" {
+				h.actionReg.DeleteSMSWebhook(id)
+			}
 		}
 	}
-	webhookURL := scheme + "://" + r.Host + "/api/sms/incoming/smsgate"
 
 	if err := h.actionReg.RegisterSMSWebhook(webhookURL); err != nil {
+		h.auditLog.Log(audit.Entry{
+			EventType:  "admin",
+			ActionType: "webhook_register",
+			Message:    "Register webhook " + webhookURL,
+			Success:    false,
+			Error:      err.Error(),
+		})
 		http.Error(w, "Register webhook failed: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	h.auditLog.Log(audit.Entry{
+		EventType:  "admin",
+		ActionType: "webhook_register",
+		Message:    "Webhook registered: " + webhookURL,
+		Success:    true,
+	})
 	fmt.Fprint(w, "Webhook registered")
+}
+
+func (h *Handlers) handleExternalURLUpdate(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		ExternalURL string `json:"external_url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	h.cfg.Lock()
+	h.cfg.Web.ExternalURL = strings.TrimRight(req.ExternalURL, "/")
+	h.cfg.UnlockAndSave(h.configPath)
+
+	fmt.Fprint(w, "External URL updated")
+}
+
+func (h *Handlers) handleSMSCleanWebhooks(w http.ResponseWriter, r *http.Request) {
+	ourURL := h.webhookURL(r)
+
+	webhooks, err := h.actionReg.GetSMSWebhooks()
+	if err != nil {
+		http.Error(w, "Failed to fetch webhooks: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	deleted := 0
+	kept := 0
+	for _, wh := range webhooks {
+		id, _ := wh["id"].(string)
+		u, _ := wh["url"].(string)
+		if id == "" {
+			continue
+		}
+		if u == ourURL {
+			kept++
+			continue
+		}
+		if err := h.actionReg.DeleteSMSWebhook(id); err == nil {
+			deleted++
+		}
+	}
+
+	msg := fmt.Sprintf("Removed %d old webhook(s), kept %d", deleted, kept)
+	h.auditLog.Log(audit.Entry{
+		EventType:  "admin",
+		ActionType: "webhook_cleanup",
+		Message:    msg,
+		Success:    true,
+	})
+	fmt.Fprint(w, msg)
 }
 
 func (h *Handlers) handleSMSWebhookStatus(w http.ResponseWriter, r *http.Request) {
@@ -634,16 +818,7 @@ func (h *Handlers) handleSMSWebhookStatus(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Compute our expected webhook URL.
-	scheme := r.Header.Get("X-Forwarded-Proto")
-	if scheme == "" {
-		if r.TLS != nil {
-			scheme = "https"
-		} else {
-			scheme = "http"
-		}
-	}
-	ourURL := scheme + "://" + r.Host + "/api/sms/incoming/smsgate"
+	ourURL := h.webhookURL(r)
 
 	webhooks, err := h.actionReg.GetSMSWebhooks()
 	if err != nil {
@@ -653,15 +828,17 @@ func (h *Handlers) handleSMSWebhookStatus(w http.ResponseWriter, r *http.Request
 	}
 
 	registered := false
+	webhookID := ""
 	for _, wh := range webhooks {
 		if u, ok := wh["url"].(string); ok && u == ourURL {
 			registered = true
+			webhookID, _ = wh["id"].(string)
 			break
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"registered": registered})
+	json.NewEncoder(w).Encode(map[string]interface{}{"registered": registered, "webhook_id": webhookID})
 }
 
 // --- Subscriber Update API ---

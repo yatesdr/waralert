@@ -21,23 +21,25 @@ import (
 
 // Handlers holds all HTTP handlers for the waralert web UI.
 type Handlers struct {
-	cfg        *config.Config
-	configPath string
-	plcManager *plcman.Manager
-	chainMgr   *chain.Manager
-	actionReg  *action.Registry
-	smsMgr     *sms.Manager
-	smsHandler *sms.Handler
-	auditLog   *audit.Logger
-	sessions   *sessionStore
-	tmpl       *template.Template
-	eventHub   *EventHub
+	cfg          *config.Config
+	configPath   string
+	certReloader *CertReloader
+	plcManager   *plcman.Manager
+	chainMgr     *chain.Manager
+	actionReg    *action.Registry
+	smsMgr       *sms.Manager
+	smsHandler   *sms.Handler
+	auditLog     *audit.Logger
+	sessions     *sessionStore
+	tmpl         *template.Template
+	eventHub     *EventHub
 }
 
 // NewRouter creates the waralert web UI router and returns a stop function for cleanup.
 func NewRouter(
 	cfg *config.Config,
 	configPath string,
+	certReloader *CertReloader,
 	plcMgr *plcman.Manager,
 	chainMgr *chain.Manager,
 	actionReg *action.Registry,
@@ -46,16 +48,17 @@ func NewRouter(
 	auditLog *audit.Logger,
 ) (chi.Router, func()) {
 	h := &Handlers{
-		cfg:        cfg,
-		configPath: configPath,
-		plcManager: plcMgr,
-		chainMgr:   chainMgr,
-		actionReg:  actionReg,
-		smsMgr:     smsMgr,
-		smsHandler: smsHandler,
-		auditLog:   auditLog,
-		sessions:   newSessionStore(cfg.Web.SessionSecret),
-		eventHub:   newEventHub(),
+		cfg:          cfg,
+		configPath:   configPath,
+		certReloader: certReloader,
+		plcManager:   plcMgr,
+		chainMgr:     chainMgr,
+		actionReg:    actionReg,
+		smsMgr:       smsMgr,
+		smsHandler:   smsHandler,
+		auditLog:     auditLog,
+		sessions:     newSessionStore(cfg.Web.SessionSecret),
+		eventHub:     newEventHub(),
 	}
 
 	h.tmpl = template.Must(template.New("").Funcs(template.FuncMap{
@@ -190,8 +193,11 @@ func NewRouter(
 			r.Post("/htmx/providers/sms/test", h.handleSMSTest)
 			r.Post("/htmx/providers/sms/test-connection", h.handleSMSTestConnection)
 			r.Post("/htmx/providers/sms/register-webhook", h.handleSMSRegisterWebhook)
+			r.Post("/htmx/providers/sms/clean-webhooks", h.handleSMSCleanWebhooks)
+			r.Post("/htmx/providers/sms/request-cert", h.handleSMSRequestCert)
 			r.Get("/htmx/providers/sms/webhook-status", h.handleSMSWebhookStatus)
 			r.Post("/htmx/providers/email/test", h.handleEmailTest)
+			r.Post("/htmx/providers/external-url", h.handleExternalURLUpdate)
 		})
 	})
 

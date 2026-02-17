@@ -14,25 +14,28 @@ import (
 	"sort"
 	"strings"
 
+	"waralert/audit"
 	"waralert/config"
 )
 
 // Handler provides HTTP handlers for incoming SMS webhooks.
 type Handler struct {
-	mgr   *Manager
-	cfg   *config.Config
-	logFn func(string, ...interface{})
+	mgr      *Manager
+	cfg      *config.Config
+	logFn    func(string, ...interface{})
+	auditLog *audit.Logger
 }
 
 // NewHandler creates a new webhook handler.
-func NewHandler(mgr *Manager, cfg *config.Config, logFn func(string, ...interface{})) *Handler {
+func NewHandler(mgr *Manager, cfg *config.Config, logFn func(string, ...interface{}), auditLog *audit.Logger) *Handler {
 	if logFn == nil {
 		logFn = func(string, ...interface{}) {}
 	}
 	return &Handler{
-		mgr:   mgr,
-		cfg:   cfg,
-		logFn: logFn,
+		mgr:      mgr,
+		cfg:      cfg,
+		logFn:    logFn,
+		auditLog: auditLog,
 	}
 }
 
@@ -92,6 +95,7 @@ func (h *Handler) HandleSMSGateIncoming(w http.ResponseWriter, r *http.Request) 
 		}
 		if !valid {
 			h.logFn("sms-gate: invalid HMAC signature from request")
+			h.logAudit("", "sms_incoming", "", "", false, "invalid HMAC signature")
 			http.Error(w, "invalid signature", http.StatusUnauthorized)
 			return
 		}
@@ -99,6 +103,7 @@ func (h *Handler) HandleSMSGateIncoming(w http.ResponseWriter, r *http.Request) 
 
 	var payload smsGatePayload
 	if err := json.Unmarshal(body, &payload); err != nil {
+		h.logAudit("", "sms_incoming", "", "", false, "invalid JSON: "+err.Error())
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}
@@ -118,13 +123,30 @@ func (h *Handler) HandleSMSGateIncoming(w http.ResponseWriter, r *http.Request) 
 
 	h.logFn("sms-gate: reply to=%s body=%q", from, reply)
 
+	var sendErr string
 	if h.mgr.smsSender != nil {
 		if err := h.mgr.smsSender.SendSMS(from, reply); err != nil {
 			h.logFn("sms-gate: send reply error: %v", err)
+			sendErr = err.Error()
 		}
 	}
 
+	h.logAudit(from, "sms_incoming", msgText, reply, sendErr == "", sendErr)
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) logAudit(from, eventType, command, reply string, success bool, errMsg string) {
+	if h.auditLog == nil {
+		return
+	}
+	h.auditLog.Log(audit.Entry{
+		EventType: eventType,
+		From:      from,
+		Command:   command,
+		Reply:     reply,
+		Success:   success,
+		Error:     errMsg,
+	})
 }
 
 // --- Twilio webhook ---

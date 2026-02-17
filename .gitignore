@@ -1,8 +1,13 @@
 # Compiled binary
-waralert
+/waralert
+/build/
 
 # Runtime config (contains secrets: session keys, passwords, API keys)
 waralert.yaml
+
+# TLS certificates (auto-generated)
+cert.pem
+key.pem
 
 # Runtime logs
 audit.log

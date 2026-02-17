@@ -135,6 +135,11 @@ var WarAlert = (function() {
     function toast(message, type) {
         ensureToastContainer();
         type = type || 'info';
+        if (type === 'error') {
+            console.error('[waralert]', message);
+        } else {
+            console.log('[waralert]', type + ':', message);
+        }
         var el = document.createElement('div');
         el.className = 'toast toast-' + type;
         el.textContent = message;
@@ -375,6 +380,8 @@ var WarAlert = (function() {
         if (connBtn) connBtn.style.display = isTwilio ? 'none' : '';
         var regBtn = document.getElementById('sms-register-webhook-btn');
         if (regBtn) regBtn.style.display = isTwilio ? 'none' : '';
+        var certBtn = document.getElementById('sms-request-cert-btn');
+        if (certBtn) certBtn.style.display = isTwilio ? 'none' : '';
     }
 
     function toggleSMSMode() {
@@ -451,6 +458,31 @@ var WarAlert = (function() {
             .catch(function(err) { toast('Email send failed: ' + err.message, 'error'); });
     }
 
+    function saveWebhookHost() {
+        var whInput = document.getElementById('sms-webhook-url');
+        if (!whInput) return;
+        var whURL = whInput.value.replace(/\/+$/, '');
+        // Extract the base (scheme + host + port) from the full webhook URL
+        var path = '/api/sms/incoming/smsgate';
+        var idx = whURL.indexOf(path);
+        var base = idx >= 0 ? whURL.substring(0, idx) : whURL;
+        api.post('/htmx/providers/external-url', { external_url: base }).then(function() {
+            toast('Webhook address saved', 'success');
+            // Ensure the field shows the full path
+            whInput.value = base + path;
+            checkWebhookStatus();
+        }).catch(function(err) {
+            toast('Failed to save: ' + err.message, 'error');
+        });
+    }
+
+    function selectExternalIP(ip, port) {
+        var input = document.getElementById('sms-webhook-url');
+        if (input) {
+            input.value = 'https://' + ip + ':' + port + '/api/sms/incoming/smsgate';
+        }
+    }
+
     function copyWebhookURL() {
         var input = document.getElementById('sms-webhook-url');
         if (!input) return;
@@ -479,6 +511,35 @@ var WarAlert = (function() {
         });
     }
 
+    function cleanSMSWebhooks() {
+        toast('Cleaning old webhooks...', 'info');
+        api.post('/htmx/providers/sms/clean-webhooks').then(function(msg) {
+            toast(msg, 'success');
+            checkWebhookStatus();
+        }).catch(function(err) {
+            toast('Clean failed: ' + err.message, 'error');
+        });
+    }
+
+    function requestSMSCert() {
+        if (!confirm('Request a TLS certificate from the SMS-gate CA?\n\nThis will replace the current self-signed certificate.')) return;
+        var btn = document.getElementById('sms-request-cert-btn');
+        if (btn) { btn.disabled = true; btn.textContent = 'Requesting...'; }
+        toast('Requesting certificate from SMS-gate CA (this may take up to 2 minutes)...', 'info');
+        fetch('/htmx/providers/sms/request-cert', { method: 'POST' }).then(function(resp) {
+            return resp.text().then(function(text) {
+                if (!resp.ok) throw new Error(text);
+                return text;
+            });
+        }).then(function(msg) {
+            toast(msg, 'success');
+            if (btn) { btn.textContent = 'Request Certificate'; btn.disabled = false; }
+        }).catch(function(err) {
+            toast('Certificate request failed: ' + err.message, 'error');
+            if (btn) { btn.textContent = 'Request Certificate'; btn.disabled = false; }
+        });
+    }
+
     function checkWebhookStatus() {
         var badge = document.getElementById('sms-webhook-status-badge');
         if (!badge) return;
@@ -493,7 +554,7 @@ var WarAlert = (function() {
             return resp.json();
         }).then(function(data) {
             if (data.registered) {
-                badge.textContent = 'Registered';
+                badge.textContent = 'Registered' + (data.webhook_id ? ' (' + data.webhook_id + ')' : '');
                 badge.className = 'badge badge-success';
             } else {
                 badge.textContent = 'Not Registered';
@@ -867,8 +928,7 @@ var WarAlert = (function() {
                     }
                     var msgs = [];
                     msgs.push(result.actions_fired + ' action(s) fired');
-                    if (result.gates_passed) msgs.push(result.gates_passed + ' gate(s) passed');
-                    if (result.gates_failed) msgs.push(result.gates_failed + ' gate(s) blocked');
+                    if (result.gates_passed) msgs.push(result.gates_passed + ' gate(s) bypassed');
 
                     if (result.errors && result.errors.length > 0) {
                         toast('Test fire: ' + msgs.join(', ') + '. Errors: ' + result.errors.join('; '), 'warning');
@@ -1515,6 +1575,10 @@ var WarAlert = (function() {
         testEmail: testEmail,
         copyWebhookURL: copyWebhookURL,
         registerSMSWebhook: registerSMSWebhook,
-        checkWebhookStatus: checkWebhookStatus
+        cleanSMSWebhooks: cleanSMSWebhooks,
+        requestSMSCert: requestSMSCert,
+        checkWebhookStatus: checkWebhookStatus,
+        saveWebhookHost: saveWebhookHost,
+        selectExternalIP: selectExternalIP
     };
 })();

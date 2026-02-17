@@ -1,15 +1,13 @@
 {{define "history_table.html"}}
 {{if not .Entries}}
-<div class="empty-state">No alert history yet.</div>
+<div class="empty-state">No events yet.</div>
 {{else}}
 <table class="table">
     <thead>
         <tr>
             <th>Time</th>
-            <th>Chain</th>
-            <th>Action</th>
-            <th>Recipients</th>
-            <th>Message</th>
+            <th>Event</th>
+            <th>Details</th>
             <th>Result</th>
         </tr>
     </thead>
@@ -17,15 +15,32 @@
         {{range .Entries}}
         <tr>
             <td class="nowrap">{{.Timestamp.Format "2006-01-02 15:04:05"}}</td>
-            <td>{{.Chain}}</td>
-            <td><span class="badge badge-info">{{.ActionType}}</span></td>
-            <td>{{join .Recipients ", "}}</td>
-            <td class="truncate">{{.Message}}</td>
+            {{if eq .EventType "sms_incoming"}}
+            <td><span class="badge badge-info">SMS Received</span></td>
+            <td>
+                <strong>From:</strong> {{.From}}<br>
+                <strong>Command:</strong> {{.Command}}<br>
+                {{if .Reply}}<strong>Reply:</strong> {{.Reply}}{{end}}
+            </td>
+            {{else if eq .EventType "admin"}}
+            <td><span class="badge badge-default">{{if .ActionType}}{{.ActionType}}{{else}}admin{{end}}</span></td>
+            <td>
+                {{if .Message}}<span class="truncate">{{.Message}}</span>{{end}}
+            </td>
+            {{else}}
+            <td><span class="badge badge-{{if .ActionType}}info{{else}}default{{end}}">{{if .ActionType}}{{.ActionType}}{{else}}action{{end}}</span></td>
+            <td>
+                {{if .Chain}}<strong>Chain:</strong> {{.Chain}}<br>{{end}}
+                {{if .Recipients}}<strong>To:</strong> {{join .Recipients ", "}}<br>{{end}}
+                {{if .Message}}<span class="truncate">{{.Message}}</span>{{end}}
+            </td>
+            {{end}}
             <td>
                 {{if .Success}}
                 <span class="badge badge-success">OK</span>
                 {{else}}
                 <span class="badge badge-danger" title="{{.Error}}">FAIL</span>
+                {{if .Error}}<br><small class="error-text">{{.Error}}</small>{{end}}
                 {{end}}
             </td>
         </tr>

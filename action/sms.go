@@ -411,6 +411,50 @@ func (p *SMSProvider) GetWebhooks(baseURL, username, password string) ([]map[str
 	return webhooks, nil
 }
 
+// DeleteWebhook deletes a webhook by ID from the SMS-gate server.
+func (p *SMSProvider) DeleteWebhook(baseURL, username, password, webhookID string) error {
+	base := ensureScheme(strings.TrimRight(baseURL, "/"))
+	if base == "" {
+		return fmt.Errorf("base URL is required")
+	}
+
+	smsCfg := p.cfg.Providers.SMS
+	var endpoint string
+	if smsCfg.Mode == "local" {
+		endpoint = base + "/webhooks/" + webhookID
+	} else {
+		endpoint = base + "/3rdparty/v1/webhooks/" + webhookID
+	}
+
+	req, err := http.NewRequest("DELETE", endpoint, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+
+	if smsCfg.Mode == "local" {
+		req.SetBasicAuth(username, password)
+	} else {
+		token, err := p.getSMSGateToken()
+		if err != nil {
+			return fmt.Errorf("auth: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("delete webhook returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
 // resolveMessage parses and executes a text/template with tag references.
 // Templates use {{.Tag "plcName" "tagName"}} to reference PLC tag values.
 func resolveMessage(msgTemplate string, tagReader TagReader) (string, error) {

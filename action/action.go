@@ -99,3 +99,9 @@ func (r *Registry) GetSMSWebhooks() ([]map[string]interface{}, error) {
 	smsCfg := r.cfg.Providers.SMS
 	return r.sms.GetWebhooks(smsCfg.BaseURL, smsCfg.Username, smsCfg.Password)
 }
+
+// DeleteSMSWebhook deletes a webhook by ID from the SMS-gate server.
+func (r *Registry) DeleteSMSWebhook(webhookID string) error {
+	smsCfg := r.cfg.Providers.SMS
+	return r.sms.DeleteWebhook(smsCfg.BaseURL, smsCfg.Username, smsCfg.Password, webhookID)
+}

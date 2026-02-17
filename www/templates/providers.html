@@ -48,10 +48,18 @@
                 <div class="form-group" id="sms-webhook-url-group">
                     <label>Webhook URL</label>
                     <div style="display:flex;gap:0.5rem;align-items:center">
-                        <input type="text" id="sms-webhook-url" value="{{.WebhookURL}}" readonly style="flex:1;background:var(--surface-2);cursor:default">
+                        <input type="text" id="sms-webhook-url" value="{{.WebhookURL}}" style="flex:1">
+                        <button type="button" class="btn btn-sm" onclick="WarAlert.saveWebhookHost()">Save</button>
                         <button type="button" class="btn btn-sm" onclick="WarAlert.copyWebhookURL()">Copy</button>
                     </div>
-                    <small>Configure this URL as the webhook endpoint in your SMS-gate app.</small>
+                    {{if .DetectedIPs}}
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.4rem">
+                        {{range .DetectedIPs}}
+                        <button class="btn btn-sm" onclick="WarAlert.selectExternalIP('{{.}}', {{$.WebPort}})">{{.}}</button>
+                        {{end}}
+                    </div>
+                    {{end}}
+                    <small>Select your LAN IP or edit the URL directly. This is where SMS-gate will send incoming messages. <a href="https://docs.sms-gate.app/services/ca/" target="_blank">SMS-gate CA</a> can issue a trusted cert for private IPs.</small>
                 </div>
                 <div class="form-group" id="sms-webhook-status-group">
                     <label>Webhook Status</label>
@@ -79,11 +87,13 @@
             <label><input type="checkbox" id="sms-enabled" {{if .SMS.Enabled}}checked{{end}}> Enabled</label>
         </div>
         {{if .IsAdmin}}
-        <div class="card-footer">
-            <button class="btn btn-primary" onclick="WarAlert.saveSMSProvider()">Save</button>
+        <div class="card-footer" style="display:flex;flex-wrap:wrap;gap:0.5rem">
             <button class="btn" id="sms-test-conn-btn" onclick="WarAlert.testSMSConnection()" style="{{if eq .SMS.Type "twilio"}}display:none{{end}}">Test Connection</button>
             <button class="btn" id="sms-register-webhook-btn" onclick="WarAlert.registerSMSWebhook()" style="{{if eq .SMS.Type "twilio"}}display:none{{end}}">Register Webhook</button>
+            <button class="btn" id="sms-clean-webhooks-btn" onclick="WarAlert.cleanSMSWebhooks()" style="{{if eq .SMS.Type "twilio"}}display:none{{end}}">Clean Webhooks</button>
+            <button class="btn" id="sms-request-cert-btn" onclick="WarAlert.requestSMSCert()" style="{{if eq .SMS.Type "twilio"}}display:none{{end}}">Request Certificate</button>
             <button class="btn" onclick="WarAlert.testSMS()">Send Test SMS</button>
+            <button class="btn btn-primary" onclick="WarAlert.saveSMSProvider()">Save</button>
         </div>
         {{end}}
     </div>

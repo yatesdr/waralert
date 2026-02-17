@@ -1,6 +1,7 @@
 package www
 
 import (
+	"net"
 	"net/http"
 
 	"waralert/config"
@@ -171,8 +172,22 @@ func (h *Handlers) handleProvidersPage(w http.ResponseWriter, r *http.Request) {
 	data["Page"] = "providers"
 	data["SMS"] = h.cfg.Providers.SMS
 	data["Email"] = h.cfg.Providers.Email
+	data["ExternalURL"] = h.cfg.Web.ExternalURL
+	data["DetectedIPs"] = detectLocalIPs()
+	data["WebPort"] = h.cfg.Web.Port
 
-	// Compute webhook URL from request.
+	// Compute webhook URL using external URL if set, otherwise from request.
+	data["WebhookURL"] = h.webhookURL(r)
+
+	h.renderTemplate(w, "providers.html", data)
+}
+
+// webhookURL computes the external webhook callback URL.
+// Prefers cfg.Web.ExternalURL if set, otherwise falls back to the request host.
+func (h *Handlers) webhookURL(r *http.Request) string {
+	if h.cfg.Web.ExternalURL != "" {
+		return h.cfg.Web.ExternalURL + "/api/sms/incoming/smsgate"
+	}
 	scheme := r.Header.Get("X-Forwarded-Proto")
 	if scheme == "" {
 		if r.TLS != nil {
@@ -181,10 +196,41 @@ func (h *Handlers) handleProvidersPage(w http.ResponseWriter, r *http.Request) {
 			scheme = "http"
 		}
 	}
-	data["WebhookURL"] = scheme + "://" + r.Host + "/api/sms/incoming/smsgate"
-
-	h.renderTemplate(w, "providers.html", data)
+	return scheme + "://" + r.Host + "/api/sms/incoming/smsgate"
 }
+
+// detectLocalIPs returns non-loopback IPv4 addresses on the machine.
+func detectLocalIPs() []string {
+	var ips []string
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return ips
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil || ip.IsLoopback() || ip.To4() == nil {
+				continue
+			}
+			ips = append(ips, ip.String())
+		}
+	}
+	return ips
+}
+
 
 func (h *Handlers) handleHistoryPage(w http.ResponseWriter, r *http.Request) {
 	data := h.getUserInfo(r)

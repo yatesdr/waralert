@@ -2,6 +2,7 @@
 package audit
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,13 +13,18 @@ import (
 // Entry represents a single audit log entry.
 type Entry struct {
 	Timestamp  time.Time `json:"timestamp"`
-	Chain      string    `json:"chain"`
-	Block      string    `json:"block"`
-	ActionType string    `json:"action_type"`
+	EventType  string    `json:"event_type,omitempty"` // "action", "sms_incoming", etc.
+	Chain      string    `json:"chain,omitempty"`
+	Block      string    `json:"block,omitempty"`
+	ActionType string    `json:"action_type,omitempty"`
 	Recipients []string  `json:"recipients,omitempty"`
 	Message    string    `json:"message,omitempty"`
 	Success    bool      `json:"success"`
 	Error      string    `json:"error,omitempty"`
+	// SMS incoming fields
+	From    string `json:"from,omitempty"`
+	Command string `json:"command,omitempty"`
+	Reply   string `json:"reply,omitempty"`
 }
 
 // Logger writes audit entries to a JSON-lines file and maintains a ring buffer.
@@ -46,11 +52,40 @@ func NewLogger(path string, ringSize int) (*Logger, error) {
 		}
 	}
 
-	return &Logger{
+	l := &Logger{
 		file:    file,
 		ring:    make([]Entry, ringSize),
 		ringCap: ringSize,
-	}, nil
+	}
+
+	// Load existing entries from file into the ring buffer.
+	if path != "" {
+		l.loadFromFile(path)
+	}
+
+	return l, nil
+}
+
+// loadFromFile reads existing JSON-lines entries into the ring buffer.
+func (l *Logger) loadFromFile(path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		var entry Entry
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			continue
+		}
+		l.ring[l.ringPos] = entry
+		l.ringPos = (l.ringPos + 1) % l.ringCap
+		if l.ringLen < l.ringCap {
+			l.ringLen++
+		}
+	}
 }
 
 // Log writes an audit entry to the file and ring buffer.

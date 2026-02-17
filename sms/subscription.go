@@ -134,3 +134,13 @@ func (m *Manager) ListTopics(phone string) []string {
 	copy(out, sub.Topics)
 	return out
 }
+
+// ListAllTopics returns all globally configured topics.
+func (m *Manager) ListAllTopics() []string {
+	m.cfg.Lock()
+	defer m.cfg.Unlock()
+
+	out := make([]string, len(m.cfg.Topics))
+	copy(out, m.cfg.Topics)
+	return out
+}

@@ -194,17 +194,7 @@ func (c *Chain) walkBlocksForTest() *TestFireResult {
 
 		switch block.Type {
 		case "gate":
-			gate := NewGate(block)
-			gateResult, err := gate.Evaluate(c.tagReader)
-			if err != nil {
-				result.Errors = append(result.Errors, fmt.Sprintf("gate %q: %v", block.Name, err))
-				return result
-			}
-			if !gateResult {
-				result.GatesFailed++
-				result.Errors = append(result.Errors, fmt.Sprintf("gate %q evaluated false, stopped", block.Name))
-				return result
-			}
+			// Test fire bypasses all gates — skip evaluation, count as passed.
 			result.GatesPassed++
 
 		case "action":
@@ -479,14 +469,14 @@ func (c *Chain) walkBlocks() {
 			gate := NewGate(block)
 			result, err := gate.Evaluate(c.tagReader)
 			if err != nil {
-				c.logFn("chain %q: block %d gate %q error: %v", c.config.Name, i, block.Name, err)
+				c.logFn("chain %q: block %d gate error: %v", c.config.Name, i, err)
 				c.mu.Lock()
-				c.lastError = fmt.Sprintf("block %d gate %q: %v", i, block.Name, err)
+				c.lastError = fmt.Sprintf("block %d gate: %v", i, err)
 				c.mu.Unlock()
 				return
 			}
 			if !result {
-				c.logFn("chain %q: block %d gate %q evaluated false, stopping walk", c.config.Name, i, block.Name)
+				c.logFn("chain %q: block %d gate evaluated false, stopping walk", c.config.Name, i)
 				return
 			}
 

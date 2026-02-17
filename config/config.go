@@ -95,6 +95,7 @@ type Config struct {
 type WebConfig struct {
 	Host          string    `yaml:"host"`
 	Port          int       `yaml:"port"`
+	ExternalURL   string    `yaml:"external_url,omitempty"`
 	SessionSecret string   `yaml:"session_secret,omitempty"`
 	Users         []WebUser `yaml:"users,omitempty"`
 }
