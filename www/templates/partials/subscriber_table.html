@@ -1,0 +1,46 @@
+{{define "subscriber_table.html"}}
+{{if not .Subscribers}}
+<div class="empty-state">No subscribers. Add subscribers or have them text SUBSCRIBE to join.</div>
+{{else}}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Phone</th>
+            <th>Name</th>
+            <th>Topics</th>
+            <th>Status</th>
+            {{if .IsAdmin}}<th>Actions</th>{{end}}
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Subscribers}}
+        <tr>
+            <td>{{.Phone}}</td>
+            <td>{{.Name}}</td>
+            <td>
+                {{range .Topics}}
+                <span class="badge badge-info">{{.}}</span>
+                {{end}}
+            </td>
+            <td>
+                {{if .Active}}
+                <span class="badge badge-success">Active</span>
+                {{else}}
+                <span class="badge badge-muted">Inactive</span>
+                {{end}}
+            </td>
+            {{if $.IsAdmin}}
+            <td class="actions"><span class="action-btns">
+                <button class="btn btn-sm" onclick="WarAlert.editSubscriber('{{.Phone}}', '{{.Name}}', '{{join .Topics ","}}')">Edit</button>
+                <button class="btn btn-sm" hx-patch="/htmx/subscribers/{{.Phone}}" hx-target="#subscriber-list">
+                    {{if .Active}}Deactivate{{else}}Activate{{end}}
+                </button>
+                <button class="btn btn-sm btn-danger" hx-delete="/htmx/subscribers/{{.Phone}}" hx-target="#subscriber-list" hx-confirm="Remove subscriber {{.Phone}}?">Delete</button>
+            </span></td>
+            {{end}}
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{end}}
+{{end}}

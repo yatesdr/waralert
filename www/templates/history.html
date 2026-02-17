@@ -1,0 +1,11 @@
+{{template "header" .}}
+
+<div class="page-header">
+    <h2>Alert History</h2>
+</div>
+
+<div id="history-list" hx-get="/htmx/history" hx-trigger="every 5s" hx-swap="innerHTML">
+    {{template "history_table.html" .}}
+</div>
+
+{{template "footer" .}}

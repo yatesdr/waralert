@@ -1,0 +1,59 @@
+{{define "chain_list.html"}}
+{{if not .Chains}}
+<div class="empty-state">No chains configured. Add a chain to get started.</div>
+{{else}}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Status</th>
+            <th>Blocks</th>
+            <th>Fires</th>
+            <th>Last Fire</th>
+            <th>Error</th>
+            {{if .IsAdmin}}<th>Actions</th>{{end}}
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Chains}}
+        <tr>
+            <td><strong>{{.Name}}</strong></td>
+            <td>
+                <span class="badge badge-{{.Status}}">{{.Status}}</span>
+                {{if and (gt .GatesTotal 0) (ne .Status.String "disabled")}}
+                <div class="gate-progress" style="font-size:12px;margin-top:0.25rem;white-space:nowrap">
+                    {{if eq .GatesPassing .GatesTotal}}
+                    <span style="color:var(--success,#28a745)">{{.GatesPassing}}/{{.GatesTotal}} gates passing</span>
+                    {{else if gt .GatesPassing 0}}
+                    <span style="color:var(--warning,#e6a817)">{{.GatesPassing}}/{{.GatesTotal}} gates passing</span>
+                    {{else}}
+                    <span style="color:var(--text-muted,#888)">0/{{.GatesTotal}} gates passing</span>
+                    {{end}}
+                    {{if gt .TimerRemainingSec 0}}
+                    <span style="color:var(--warning,#e6a817)">({{fmtDuration .TimerRemainingSec}} remaining)</span>
+                    {{end}}
+                </div>
+                {{end}}
+            </td>
+            <td>{{.BlockCount}}</td>
+            <td>{{.FireCount}}</td>
+            <td>{{if not .LastFire.IsZero}}{{.LastFire.Format "2006-01-02 15:04:05"}}{{else}}-{{end}}</td>
+            <td class="error-text">{{.Error}}</td>
+            {{if $.IsAdmin}}
+            <td class="actions"><span class="action-btns">
+                <button class="btn btn-sm btn-icon" onclick="WarAlert.editChain('{{.Name}}')" title="Edit">&#9998;</button>
+                {{if eq .Status.String "disabled"}}
+                <button class="btn btn-sm btn-icon" hx-post="/htmx/chains/{{.Name}}/start" hx-target="#chain-list" title="Start" style="color:var(--success,#28a745)">&#9654;</button>
+                {{else}}
+                <button class="btn btn-sm btn-icon" hx-post="/htmx/chains/{{.Name}}/stop" hx-target="#chain-list" title="Stop" style="color:var(--danger,#dc3545)">&#9632;</button>
+                {{end}}
+                <button class="btn btn-sm btn-icon" onclick="WarAlert.testFireChain('{{.Name}}')" title="Test Fire" style="color:var(--danger,#dc3545)">&#9889;</button>
+                <button class="btn btn-sm btn-icon" hx-delete="/htmx/chains/{{.Name}}" hx-target="#chain-list" hx-confirm="Delete chain '{{.Name}}'?" title="Delete" style="color:var(--danger,#dc3545)">&times;</button>
+            </span></td>
+            {{end}}
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{end}}
+{{end}}

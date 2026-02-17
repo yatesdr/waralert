@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WarAlert - Setup</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v={{cacheBust}}">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <div class="login-card">
+            <h1>WarAlert</h1>
+            <p class="login-subtitle">Initial Setup</p>
+            <p style="text-align:center;opacity:0.7;margin-bottom:1rem">Create the first admin account</p>
+            {{if .Error}}
+            <div class="alert alert-error">{{.Error}}</div>
+            {{end}}
+            <form action="/setup" method="post" class="login-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Create Admin Account</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

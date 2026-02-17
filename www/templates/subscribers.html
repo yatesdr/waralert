@@ -1,0 +1,149 @@
+{{template "header" .}}
+
+{{if .IsAdmin}}
+<div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap">
+    <strong style="white-space:nowrap">Active Topics</strong>
+    <div style="display:flex;flex-wrap:wrap;gap:0.35rem;flex:1" id="topic-badges">
+        {{if .Topics}}
+            {{range .Topics}}
+            <span class="badge badge-success">{{.}}</span>
+            {{end}}
+        {{else}}
+            <span class="text-muted">None yet — topics are auto-created from chains and SMS subscriptions.</span>
+        {{end}}
+    </div>
+</div>
+{{end}}
+
+<div class="page-header">
+    <h2>SMS Subscribers</h2>
+    {{if .IsAdmin}}
+    <button class="btn btn-primary" onclick="WarAlert.showModal('sub-modal')">Add Subscriber</button>
+    {{end}}
+</div>
+
+<div id="subscriber-list" hx-get="/htmx/subscribers" hx-trigger="every 10s" hx-swap="innerHTML">
+    {{template "subscriber_table.html" .}}
+</div>
+
+<div class="page-header" style="margin-top:2rem">
+    <h2>Email Subscribers</h2>
+</div>
+{{if .EmailTargets}}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Email</th>
+            <th>Chain</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .EmailTargets}}
+        <tr>
+            <td>{{.Email}}</td>
+            <td><span class="badge badge-info">{{.Chain}}</span></td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<div class="empty-state">No email subscribers. Add email actions in chain configurations.</div>
+{{end}}
+
+<div class="page-header" style="margin-top:2rem">
+    <h2>Webhook Subscribers</h2>
+</div>
+{{if .WebhookTargets}}
+<table class="table">
+    <thead>
+        <tr>
+            <th>URL</th>
+            <th>Method</th>
+            <th>Chain</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .WebhookTargets}}
+        <tr>
+            <td>{{.URL}}</td>
+            <td><span class="badge badge-muted">{{.Method}}</span></td>
+            <td><span class="badge badge-info">{{.Chain}}</span></td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<div class="empty-state">No webhook subscribers. Add webhook actions in chain configurations.</div>
+{{end}}
+
+{{if .IsAdmin}}
+<div class="modal" id="sub-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add Subscriber</h3>
+            <button class="modal-close" onclick="WarAlert.hideModal('sub-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="tel" id="sub-phone" placeholder="+15551234567">
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="sub-name" placeholder="John Doe">
+            </div>
+            <div class="form-group">
+                <label>Topics</label>
+                {{if .Topics}}
+                <div class="checkbox-group" id="sub-topics-group">
+                    {{range .Topics}}
+                    <label class="checkbox-label"><input type="checkbox" value="{{.}}"> {{.}}</label>
+                    {{end}}
+                </div>
+                {{else}}
+                <small>No topics configured. Create topics in the Topics section above.</small>
+                {{end}}
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('sub-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="WarAlert.createSubscriber()">Add</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="sub-edit-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Subscriber</h3>
+            <button class="modal-close" onclick="WarAlert.hideModal('sub-edit-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Phone Number</label>
+                <input type="tel" id="sub-edit-phone" readonly>
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="sub-edit-name">
+            </div>
+            <div class="form-group">
+                <label>Topics</label>
+                <div id="sub-edit-topics-selected" style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-bottom:0.5rem"></div>
+                <select id="sub-edit-topic-picker" onchange="WarAlert.addEditSubTopic(this)">
+                    <option value="">Add a topic...</option>
+                    {{range .Topics}}
+                    <option value="{{.}}">{{.}}</option>
+                    {{end}}
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('sub-edit-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="WarAlert.saveSubscriber()">Save</button>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{template "footer" .}}

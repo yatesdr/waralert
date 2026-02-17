@@ -1,0 +1,51 @@
+{{define "header"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>WarAlert</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico?v={{cacheBust}}">
+    <script>
+    (function(){var t=localStorage.getItem('theme');if(!t){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.dataset.theme=t})();
+    </script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/htmx.min.js"></script>
+    <script src="/static/js/waralert.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">WarAlert</a>
+        </div>
+        <div class="nav-links">
+            <a href="/chains" class="{{if eq .Page "chains"}}active{{end}}">Alert Chains</a>
+            <span class="nav-divider"></span>
+            <a href="/subscribers" class="{{if eq .Page "subscribers"}}active{{end}}">Subscribers</a>
+            <a href="/providers" class="{{if eq .Page "providers"}}active{{end}}">Providers</a>
+            <span class="nav-divider"></span>
+            <a href="/history" class="{{if eq .Page "history"}}active{{end}}">History</a>
+            <a href="/settings" class="{{if eq .Page "settings"}}active{{end}}">Settings</a>
+        </div>
+        <div class="nav-user">
+            <button class="theme-toggle" onclick="WarAlert.toggleTheme()" title="Toggle theme"></button>
+            <span class="username">{{.Username}}</span>
+            <form action="/logout" method="post" style="display:inline">
+                <button type="submit" class="btn btn-sm">Logout</button>
+            </form>
+        </div>
+    </nav>
+    <main class="container">
+{{end}}
+
+{{define "footer"}}
+    </main>
+    <footer class="footer">
+        <div class="container">
+            WarAlert
+        </div>
+    </footer>
+</body>
+</html>
+{{end}}

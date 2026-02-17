@@ -1,0 +1,29 @@
+{{define "user_table.html"}}
+{{if not .Users}}
+<div class="empty-state">No users configured.</div>
+{{else}}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Username</th>
+            <th>Role</th>
+            {{if .IsAdmin}}<th>Actions</th>{{end}}
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Users}}
+        <tr>
+            <td><strong>{{.Username}}</strong></td>
+            <td><span class="badge badge-{{if eq .Role "admin"}}warning{{else}}info{{end}}">{{.Role}}</span></td>
+            {{if $.IsAdmin}}
+            <td class="actions"><span class="action-btns">
+                <button class="btn btn-sm" onclick="WarAlert.editUser('{{.Username}}', '{{.Role}}')">Edit</button>
+                <button class="btn btn-sm btn-danger" hx-delete="/htmx/users/{{.Username}}" hx-target="#user-list" hx-confirm="Delete user '{{.Username}}'?">Delete</button>
+            </span></td>
+            {{end}}
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{end}}
+{{end}}

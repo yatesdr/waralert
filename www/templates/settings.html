@@ -1,0 +1,257 @@
+{{template "header" .}}
+
+<div class="page-header">
+    <h2>Settings</h2>
+</div>
+
+<details class="accordion" open>
+    <summary>
+        <span>Data Sources</span>
+        {{if .IsAdmin}}
+        <button class="btn btn-primary btn-sm" onclick="event.preventDefault(); WarAlert.showModal('source-modal')">Add Source</button>
+        {{end}}
+    </summary>
+    <div class="accordion-body">
+        <div id="source-list" hx-get="/htmx/sources" hx-trigger="every 5s" hx-swap="innerHTML">
+            {{template "source_list.html" .}}
+        </div>
+    </div>
+</details>
+
+<details class="accordion">
+    <summary>
+        <span>Web Users</span>
+        {{if .IsAdmin}}
+        <button class="btn btn-primary btn-sm" onclick="event.preventDefault(); WarAlert.showModal('user-add-modal')">Add User</button>
+        {{end}}
+    </summary>
+    <div class="accordion-body">
+        <div id="user-list">
+            {{template "user_table.html" .}}
+        </div>
+    </div>
+</details>
+
+{{if .IsAdmin}}
+<!-- Source modals -->
+<div class="modal" id="source-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add Source</h3>
+            <button class="modal-close" onclick="WarAlert.hideModal('source-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Type</label>
+                <select id="source-type" onchange="WarAlert.toggleSourceType(this)">
+                    <option value="warlink">WarLink</option>
+                    <option value="plc">Direct PLC</option>
+                    <option value="ping">Ping Monitor</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="source-name" placeholder="e.g. WarLink or press-1">
+            </div>
+            <div id="source-warlink-fields">
+                <div class="form-group">
+                    <label>URL</label>
+                    <input type="url" id="source-url" placeholder="http://localhost:8080/api">
+                </div>
+            </div>
+            <div id="source-plc-fields" style="display:none">
+                <div class="form-group">
+                    <label>Address</label>
+                    <input type="text" id="source-address" placeholder="e.g. 192.168.1.10">
+                </div>
+                <div class="form-group">
+                    <label>Family</label>
+                    <select id="source-family">
+                        <option value="logix">Allen-Bradley Logix</option>
+                        <option value="micro800">Allen-Bradley Micro800</option>
+                        <option value="s7">Siemens S7</option>
+                        <option value="omron">Omron</option>
+                        <option value="beckhoff">Beckhoff ADS</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Slot</label>
+                    <input type="number" id="source-slot" value="0" min="0">
+                </div>
+            </div>
+            <div id="source-ping-fields" style="display:none">
+                <div class="form-group">
+                    <label>Host</label>
+                    <input type="text" id="source-host" placeholder="e.g. 192.168.1.1 or server.local">
+                </div>
+                <div class="form-group">
+                    <label>Port</label>
+                    <input type="number" id="source-port" value="0" min="0">
+                    <small>0 = ICMP ping, &gt;0 = TCP port check</small>
+                </div>
+                <div class="form-group">
+                    <label>Interval (seconds)</label>
+                    <input type="number" id="source-ping-interval" value="30" min="5">
+                </div>
+            </div>
+            <label><input type="checkbox" id="source-enabled" checked> Enabled</label>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('source-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="WarAlert.createSource()">Add</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="source-edit-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit Source</h3>
+            <button class="modal-close" onclick="WarAlert.hideModal('source-edit-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Type</label>
+                <input type="text" id="source-edit-type" readonly>
+            </div>
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="source-edit-name" readonly>
+            </div>
+            <div id="source-edit-warlink-fields">
+                <div class="form-group">
+                    <label>URL</label>
+                    <input type="url" id="source-edit-url">
+                </div>
+            </div>
+            <div id="source-edit-plc-fields" style="display:none">
+                <div class="form-group">
+                    <label>Address</label>
+                    <input type="text" id="source-edit-address">
+                </div>
+                <div class="form-group">
+                    <label>Family</label>
+                    <select id="source-edit-family">
+                        <option value="logix">Allen-Bradley Logix</option>
+                        <option value="micro800">Allen-Bradley Micro800</option>
+                        <option value="s7">Siemens S7</option>
+                        <option value="omron">Omron</option>
+                        <option value="beckhoff">Beckhoff ADS</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Slot</label>
+                    <input type="number" id="source-edit-slot" value="0" min="0">
+                </div>
+            </div>
+            <div id="source-edit-ping-fields" style="display:none">
+                <div class="form-group">
+                    <label>Host</label>
+                    <input type="text" id="source-edit-host">
+                </div>
+                <div class="form-group">
+                    <label>Port</label>
+                    <input type="number" id="source-edit-port" value="0" min="0">
+                    <small>0 = ICMP ping, &gt;0 = TCP port check</small>
+                </div>
+                <div class="form-group">
+                    <label>Interval (seconds)</label>
+                    <input type="number" id="source-edit-ping-interval" value="30" min="5">
+                </div>
+            </div>
+            <label><input type="checkbox" id="source-edit-enabled"> Enabled</label>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('source-edit-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="WarAlert.saveSource()">Save</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="plc-tags-modal">
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h3>Tag Management - <span id="plc-tags-name"></span></h3>
+            <button class="modal-close" onclick="WarAlert.hideModal('plc-tags-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-row" style="margin-bottom:1rem">
+                <div class="form-group" style="margin-bottom:0">
+                    <div id="plc-tag-picker-container"></div>
+                </div>
+                <div style="display:flex;align-items:flex-end;gap:0.5rem">
+                    <label style="font-size:13px"><input type="checkbox" id="plc-tag-enabled" checked> Enabled</label>
+                    <button class="btn btn-primary btn-sm" onclick="WarAlert.addPLCTag()">Add Tag</button>
+                </div>
+            </div>
+            <div id="plc-tag-list"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('plc-tags-modal')">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- User modals -->
+<div class="modal" id="user-add-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Add User</h3>
+            <button class="modal-close" onclick="WarAlert.hideModal('user-add-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="user-add-username" placeholder="e.g. operator1">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="user-add-password">
+            </div>
+            <div class="form-group">
+                <label>Role</label>
+                <select id="user-add-role">
+                    <option value="viewer">Viewer</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('user-add-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="WarAlert.createUser()">Add</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="user-edit-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Edit User</h3>
+            <button class="modal-close" onclick="WarAlert.hideModal('user-edit-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="user-edit-username" readonly>
+            </div>
+            <div class="form-group">
+                <label>New Password (leave blank to keep current)</label>
+                <input type="password" id="user-edit-password">
+            </div>
+            <div class="form-group">
+                <label>Role</label>
+                <select id="user-edit-role">
+                    <option value="viewer">Viewer</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('user-edit-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="WarAlert.saveUser()">Save</button>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{template "footer" .}}

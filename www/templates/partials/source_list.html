@@ -1,0 +1,68 @@
+{{define "source_list.html"}}
+{{if not .Sources}}
+<div class="empty-state">No sources configured. Add a WarLink, PLC, or Ping source.</div>
+{{else}}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Details</th>
+            <th>PLCs</th>
+            <th>Tags</th>
+            {{if $.IsAdmin}}<th>Actions</th>{{end}}
+        </tr>
+    </thead>
+    <tbody>
+    {{range .Sources}}
+        <tr>
+            <td><strong>{{.Name}}</strong></td>
+            <td>
+                {{if eq .Type "warlink"}}
+                <span class="source-type-badge source-type-warlink">WARLINK</span>
+                {{else if eq .Type "ping"}}
+                <span class="source-type-badge source-type-ping">PING</span>
+                {{else}}
+                <span class="source-type-badge source-type-plc">PLC</span>
+                {{end}}
+            </td>
+            <td>
+                {{if not .Enabled}}
+                <span class="badge badge-muted">Disabled</span>
+                {{else}}
+                <span class="badge badge-{{lower .Status}}">{{.Status}}</span>
+                {{end}}
+            </td>
+            <td>
+                {{if eq .Type "warlink"}}
+                    <span class="truncate" title="{{.URL}}">{{.URL}}</span>
+                {{else if eq .Type "ping"}}
+                    {{if gt .Port 0}}{{.Host}}:{{.Port}}{{else}}{{.Host}}{{end}}
+                {{else}}
+                    {{.Address}} ({{.Family}})
+                {{end}}
+                {{if .Error}}<div class="error-text">{{.Error}}</div>{{end}}
+            </td>
+            <td>{{.PLCCount}}</td>
+            <td>{{.TagCount}}</td>
+            {{if $.IsAdmin}}
+            <td class="actions"><span class="action-btns">
+                <button class="btn btn-sm" onclick="WarAlert.editSource('{{.Name}}')">Edit</button>
+                {{if eq .Type "plc"}}
+                    {{if eq .Status "Connected"}}
+                    <button class="btn btn-sm btn-warning" hx-post="/htmx/plcs/{{.Name}}/disconnect" hx-target="#source-list">Disconnect</button>
+                    {{else}}
+                    <button class="btn btn-sm btn-success" hx-post="/htmx/plcs/{{.Name}}/connect" hx-target="#source-list">Connect</button>
+                    {{end}}
+                    <button class="btn btn-sm" onclick="WarAlert.manageTags('{{.Name}}')">Tags</button>
+                {{end}}
+                <button class="btn btn-sm btn-danger" hx-delete="/htmx/sources/{{.Name}}" hx-target="#source-list" hx-confirm="Delete source '{{.Name}}'?">Delete</button>
+            </span></td>
+            {{end}}
+        </tr>
+    {{end}}
+    </tbody>
+</table>
+{{end}}
+{{end}}

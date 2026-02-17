@@ -1,0 +1,14 @@
+# Compiled binary
+waralert
+
+# Runtime config (contains secrets: session keys, passwords, API keys)
+waralert.yaml
+
+# Runtime logs
+audit.log
+
+# macOS
+.DS_Store
+
+# Claude Code local settings
+.claude/

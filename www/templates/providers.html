@@ -1,0 +1,149 @@
+{{template "header" .}}
+
+<div class="page-header">
+    <h2>Alert Providers</h2>
+</div>
+
+<div class="card-grid">
+    <div class="card">
+        <div class="card-header">
+            <h3>SMS Provider</h3>
+            <span class="badge {{if .SMS.Enabled}}badge-success{{else}}badge-muted{{end}}">
+                {{if .SMS.Enabled}}Enabled{{else}}Disabled{{end}}
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <label>Provider Type</label>
+                <select id="sms-type" onchange="WarAlert.toggleSMSType()">
+                    <option value="smsgate" {{if eq .SMS.Type "smsgate"}}selected{{end}}>SMS-Gate</option>
+                    <option value="twilio" {{if eq .SMS.Type "twilio"}}selected{{end}}>Twilio</option>
+                </select>
+            </div>
+            <div id="smsgate-fields" style="{{if eq .SMS.Type "twilio"}}display:none{{end}}">
+                <div class="form-group">
+                    <label>Connection Mode</label>
+                    <select id="sms-mode" onchange="WarAlert.toggleSMSMode()">
+                        <option value="local" {{if eq .SMS.Mode "local"}}selected{{end}}>Local Phone (LAN)</option>
+                        <option value="cloud" {{if or (eq .SMS.Mode "cloud") (eq .SMS.Mode "")}}selected{{end}}>Cloud / Private Server</option>
+                    </select>
+                    <small id="sms-mode-hint"></small>
+                </div>
+                <div class="form-group">
+                    <label>Base URL</label>
+                    <input type="text" id="sms-base-url" value="{{.SMS.BaseURL}}" placeholder="http://192.168.1.100:8080">
+                </div>
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="sms-username" value="{{.SMS.Username}}">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="sms-password" value="{{.SMS.Password}}">
+                </div>
+                <div class="form-group" id="sms-webhook-group">
+                    <label>Webhook Secret</label>
+                    <input type="text" id="sms-webhook-secret" value="{{.SMS.WebhookSecret}}">
+                </div>
+                <div class="form-group" id="sms-webhook-url-group">
+                    <label>Webhook URL</label>
+                    <div style="display:flex;gap:0.5rem;align-items:center">
+                        <input type="text" id="sms-webhook-url" value="{{.WebhookURL}}" readonly style="flex:1;background:var(--surface-2);cursor:default">
+                        <button type="button" class="btn btn-sm" onclick="WarAlert.copyWebhookURL()">Copy</button>
+                    </div>
+                    <small>Configure this URL as the webhook endpoint in your SMS-gate app.</small>
+                </div>
+                <div class="form-group" id="sms-webhook-status-group">
+                    <label>Webhook Status</label>
+                    <span class="badge badge-muted" id="sms-webhook-status-badge">Checking...</span>
+                </div>
+            </div>
+            <div id="twilio-fields" style="{{if ne .SMS.Type "twilio"}}display:none{{end}}">
+                <div class="form-group">
+                    <label>Account SID</label>
+                    <input type="text" id="sms-account-sid" value="{{.SMS.AccountSID}}">
+                </div>
+                <div class="form-group">
+                    <label>Auth Token</label>
+                    <input type="password" id="sms-auth-token" value="{{.SMS.AuthToken}}">
+                </div>
+                <div class="form-group">
+                    <label>From Number</label>
+                    <input type="tel" id="sms-from-number" value="{{.SMS.FromNumber}}">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Rate Limit (per minute)</label>
+                <input type="number" id="sms-rate" value="{{.SMS.GlobalRatePerMin}}" min="1">
+            </div>
+            <label><input type="checkbox" id="sms-enabled" {{if .SMS.Enabled}}checked{{end}}> Enabled</label>
+        </div>
+        {{if .IsAdmin}}
+        <div class="card-footer">
+            <button class="btn btn-primary" onclick="WarAlert.saveSMSProvider()">Save</button>
+            <button class="btn" id="sms-test-conn-btn" onclick="WarAlert.testSMSConnection()" style="{{if eq .SMS.Type "twilio"}}display:none{{end}}">Test Connection</button>
+            <button class="btn" id="sms-register-webhook-btn" onclick="WarAlert.registerSMSWebhook()" style="{{if eq .SMS.Type "twilio"}}display:none{{end}}">Register Webhook</button>
+            <button class="btn" onclick="WarAlert.testSMS()">Send Test SMS</button>
+        </div>
+        {{end}}
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h3>Email Provider</h3>
+            <span class="badge {{if .Email.Enabled}}badge-success{{else}}badge-muted{{end}}">
+                {{if .Email.Enabled}}Enabled{{else}}Disabled{{end}}
+            </span>
+        </div>
+        <div class="card-body">
+            <div class="form-group">
+                <label>SMTP Host</label>
+                <input type="text" id="email-host" value="{{.Email.Host}}" placeholder="smtp.company.com">
+            </div>
+            <div class="form-group">
+                <label>Port</label>
+                <input type="number" id="email-port" value="{{.Email.Port}}" min="1">
+            </div>
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="email-username" value="{{.Email.Username}}">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="email-password" value="{{.Email.Password}}">
+            </div>
+            <div class="form-group">
+                <label>From Address</label>
+                <input type="email" id="email-from" value="{{.Email.From}}">
+            </div>
+            <label><input type="checkbox" id="email-tls" {{if .Email.UseTLS}}checked{{end}}> Use TLS</label>
+            <br>
+            <label><input type="checkbox" id="email-enabled" {{if .Email.Enabled}}checked{{end}}> Enabled</label>
+        </div>
+        {{if .IsAdmin}}
+        <div class="card-footer">
+            <button class="btn btn-primary" onclick="WarAlert.saveEmailProvider()">Save</button>
+            <button class="btn" onclick="WarAlert.testEmail()">Send Test Email</button>
+        </div>
+        {{end}}
+    </div>
+</div>
+
+<script>
+// Update mode hint and webhook status on load
+(function() {
+    function init() {
+        if (typeof WarAlert !== 'undefined') {
+            if (WarAlert.toggleSMSMode) WarAlert.toggleSMSMode();
+            if (WarAlert.checkWebhookStatus) WarAlert.checkWebhookStatus();
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();
+</script>
+
+{{template "footer" .}}

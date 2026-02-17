@@ -1,0 +1,87 @@
+{{template "header" .}}
+
+<div class="page-header">
+    <h2>Alert Chains</h2>
+    {{if .IsAdmin}}
+    <button class="btn btn-primary" onclick="WarAlert.showModal('chain-modal')">Add Chain</button>
+    {{end}}
+</div>
+
+<div id="chain-list" hx-get="/htmx/chains" hx-trigger="every 5s" hx-swap="innerHTML">
+    {{template "chain_list.html" .}}
+</div>
+
+{{if .IsAdmin}}
+<div class="modal" id="chain-modal">
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h3>New Alert Chain</h3>
+            <button class="modal-close" onclick="WarAlert.hideModal('chain-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Chain Name</label>
+                <input type="text" id="chain-name" placeholder="e.g. Oven-Temp-Escalation">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Debounce (sec)</label>
+                    <input type="number" id="chain-debounce" value="2" min="0">
+                </div>
+                <div class="form-group">
+                    <label>Cooldown (sec)</label>
+                    <input type="number" id="chain-cooldown" value="300" min="0">
+                </div>
+            </div>
+            <label><input type="checkbox" id="chain-enabled" checked> Enabled</label>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('chain-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="WarAlert.createChain()">Create</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="chain-edit-modal">
+    <div class="modal-content modal-xl">
+        <div class="modal-header" style="flex-wrap:wrap;gap:0.5rem">
+            <h3 style="margin:0;margin-right:auto">Edit Chain: <span id="chain-edit-title"></span></h3>
+            <div style="display:flex;align-items:center;gap:0.75rem;font-size:13px">
+                <label style="display:flex;align-items:center;gap:0.25rem;margin:0;cursor:help" title="Re-check delay after first trigger to confirm the condition is still true before firing">Debounce:
+                    <input type="number" id="chain-edit-debounce" min="0" style="width:60px;padding:2px 6px;font-size:13px">
+                    <span style="color:var(--text-muted,#888)">s</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:0.25rem;margin:0;cursor:help" title="Minimum wait time after firing before the chain can trigger again">Cooldown:
+                    <input type="number" id="chain-edit-cooldown" min="0" style="width:60px;padding:2px 6px;font-size:13px">
+                    <span style="color:var(--text-muted,#888)">s</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:0.25rem;margin:0"><input type="checkbox" id="chain-edit-enabled"> Enabled</label>
+            </div>
+            <button class="modal-close" onclick="WarAlert.hideModal('chain-edit-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem">
+                <h4>Blocks</h4>
+                <div style="display:flex;gap:0.5rem">
+                    <button class="btn btn-sm btn-success" onclick="WarAlert.addBlock('gate')">+ Gate</button>
+                    <button class="btn btn-sm btn-primary" onclick="WarAlert.addBlock('action')">+ Action</button>
+                </div>
+            </div>
+            <div id="chain-blocks-container"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="WarAlert.hideModal('chain-edit-modal')">Cancel</button>
+            <button class="btn btn-primary" onclick="WarAlert.saveChain()">Save</button>
+        </div>
+    </div>
+</div>
+
+<script>
+window._waralertPLCNames = {{json .PLCNames}};
+window._waralertPingNames = {{json .PingNames}};
+window._waralertTopics = {{json .Topics}};
+</script>
+{{end}}
+
+{{template "footer" .}}
