@@ -2,6 +2,10 @@
 
 Companion app to [WarLink](https://github.com/yatesdr/warlink) that converts process data into SMS and email alerts based on configurable conditions, timers, and schedules. Monitors PLC tags, ping targets, and WarLink sources through alert chains with gate logic, then delivers notifications via SMS, email, and webhooks.
 
+<img width="1191" height="502" alt="image" src="https://github.com/user-attachments/assets/bc4baa42-a89e-4695-8ed0-c2dec35fbe00" />
+
+<img width="896" height="597" alt="image" src="https://github.com/user-attachments/assets/d730a0ea-1a2d-4187-bc18-5505bca80fa5" />
+
 ## Quick Start
 
 ### 1. Download and Run
