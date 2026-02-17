@@ -1,14 +1,30 @@
 # WarAlert
 
-Industrial alert system that monitors PLC tags, ping targets, and WarLink sources, then fires SMS, email, and webhook notifications through configurable alert chains.
+Companion app to [WarLink](https://github.com/yatesdr/warlink) that converts process data into SMS and email alerts based on configurable conditions, timers, and schedules. Monitors PLC tags, ping targets, and WarLink sources through alert chains with gate logic, then delivers notifications via SMS, email, and webhooks.
 
 ## Quick Start
 
-### 1. Build and Run
+### 1. Download and Run
+
+Download the latest release for your platform from the [Releases](https://github.com/yatesdr/waralert/releases) page.
+
+```bash
+# Linux / macOS
+tar -xzf waralert-linux-amd64.tar.gz
+./waralert
+```
+
+```powershell
+# Windows
+# Extract waralert-windows-amd64.zip, then run:
+.\waralert.exe
+```
+
+Or build from source:
 
 ```bash
 make build
-./waralert -config waralert.yaml
+./waralert
 ```
 
 On first launch WarAlert will:
@@ -20,15 +36,14 @@ Open the URL in your browser and create your admin account on the setup page.
 
 ### 2. Add a Source
 
-Go to the **Sources** page and add a source. WarAlert supports three source types:
+Go to the **Sources** page and add a source:
 
 | Type | Purpose |
 |------|---------|
-| **WarLink** | Polls a [WarLink](https://github.com/yatesdr/warlink) REST API for PLC tags |
-| **Direct PLC** | Connects directly to a PLC (Logix, Micro800, S7, Omron, Beckhoff) |
+| **WarLink** | Polls a [WarLink](https://github.com/yatesdr/warlink) instance for PLC tags |
 | **Ping** | Monitors host availability via ICMP or TCP |
 
-For a typical setup with WarLink, point the source URL at your WarLink instance (e.g. `http://192.168.1.100:8080/api`).
+Point the WarLink source URL at your WarLink instance (e.g. `http://192.168.1.100:8080/api`). WarLink handles all PLC communication — WarAlert reads tag values through the WarLink REST API.
 
 ### 3. Configure SMS Provider (SMS-Gate Local Mode)
 
@@ -67,6 +82,17 @@ Subscribers manage their own subscriptions by texting commands to the SMS-Gate p
 | `STOP` | Stop all messages |
 | `HELP` | Show command help |
 
+### Topic Hierarchy
+
+Topics use `-` as a separator to form parent-child relationships. A subscriber to a parent topic receives alerts for all subtopics:
+
+```
+SUB SERVERDOWN          -- receives SERVERDOWN, SERVERDOWN-SERVER1, SERVERDOWN-SERVER2, etc.
+SUB SERVERDOWN-SERVER1  -- receives only SERVERDOWN-SERVER1
+```
+
+When an alert chain fires to topic `SERVERDOWN-SERVER1`, both subscribers above are notified. When it fires to `SERVERDOWN`, only the first subscriber is notified. `UNSUB SERVERDOWN` removes `SERVERDOWN` and all `SERVERDOWN-*` subtopics.
+
 ## CLI Flags
 
 ```
@@ -90,13 +116,23 @@ This creates (or updates) the admin account in the config file and exits. Useful
 
 ## TLS Certificates
 
-WarAlert always runs over HTTPS. On first start it generates a self-signed certificate valid for 10 years covering `localhost`, `127.0.0.1`, and all detected LAN IPs.
+WarAlert always runs over HTTPS. On first start it generates a self-signed certificate locally — no internet access is required for initial startup.
 
-For SMS-Gate integration you should request a CA-signed certificate through the web UI (**Providers > Request Certificate**). This cert is issued by the SMS-Gate CA and is valid for 1 year.
+Android requires valid TLS certificates for webhook delivery, so SMS-Gate **will not** forward incoming messages to WarAlert over a self-signed cert. You must request a CA-signed certificate through the web UI (**Providers > Request Certificate**). This contacts the SMS-Gate CA to issue a certificate valid for 1 year.
+
+The CA process is automated as much as possible, but it can be a tripping point — the request must be approved in the SMS-Gate app on the phone, and the WarAlert server needs outbound HTTPS access to the CA.
+
+**Firewall requirements:** If WarAlert is on an isolated network, IT will need to allow outbound HTTPS (port 443) to:
+
+```
+https://ca.sms-gate.app
+```
+
+This is needed for initial certificate requests and for auto-renewal (checked every 12 hours, renews within 30 days of expiry). No other external endpoints are required.
 
 WarAlert handles certificate lifecycle automatically:
 - **Hot-reload**: New certificates take effect immediately with no restart
-- **Auto-renewal**: A background check runs every 12 hours and renews the certificate automatically when it is within 30 days of expiry
+- **Auto-renewal**: Renews automatically when within 30 days of expiry — requires outbound access to the CA URL above
 - **Event log**: Certificate status, renewals, and failures are logged to the Event Log page
 
 See [TLS Certificates](docs/tls-certificates.md) for details.
@@ -109,7 +145,7 @@ See [TLS Certificates](docs/tls-certificates.md) for details.
 | [Chains and Gates](docs/chains-and-gates.md) | Alert chain logic, gate conditions, actions, and timing |
 | [SMS Commands](docs/sms-commands.md) | SMS command reference for subscribers |
 | [TLS Certificates](docs/tls-certificates.md) | Certificate management, hot-reload, and auto-renewal |
-| [Sources](docs/sources.md) | WarLink, direct PLC, and ping source configuration |
+| [Sources](docs/sources.md) | WarLink and ping source configuration |
 
 ## License
 

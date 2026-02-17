@@ -9,6 +9,14 @@ This guide covers setting up WarAlert with SMS-Gate in **local mode**, where SMS
 - SMS-Gate credentials (username and password)
 - WarAlert's LAN IP address (e.g. `192.168.1.50`)
 
+### Phone Setup
+
+Before configuring WarAlert, make sure the SMS-Gate phone is set up correctly:
+
+1. **Grant SMS permissions**: SMS-Gate needs permission to send and receive SMS messages. When first launched, accept all permission prompts. If you missed them, go to Android Settings > Apps > SMS-Gate > Permissions and enable SMS and Notifications.
+2. **Disable battery optimization**: Android will kill background apps to save battery. Go to Settings > Apps > SMS-Gate > Battery and select "Unrestricted" (or "Don't optimize"). Without this, SMS-Gate will stop working after the phone sleeps.
+3. **Disable RCS messaging**: RCS (Rich Communication Services / Google Chat features) can interfere with SMS delivery. Go to the phone's default Messages app > Settings > Chat features and turn off "Enable chat features". SMS-Gate requires plain SMS to function reliably.
+
 ## Step 1: Configure the SMS Provider
 
 1. Go to **Providers** in the WarAlert web UI
@@ -80,3 +88,15 @@ Send a text message to the SMS-Gate phone number with the text `HELP`. You shoul
 **Signature validation failures:**
 - Ensure the webhook secret matches exactly between SMS-Gate and WarAlert
 - Clear the webhook secret field in both apps if you want to disable validation
+
+**SMS-Gate stops working after a while:**
+- Battery optimization is killing the app — disable it (see Phone Setup above)
+- Some phones have additional battery savers (Samsung, Xiaomi, etc.) that must also be disabled for SMS-Gate
+
+**Messages sent but not received by subscribers:**
+- RCS may be intercepting messages — disable chat features on the SMS-Gate phone
+- Check that the subscriber's phone number includes the country code (e.g. `+1` for US)
+
+**SMS-Gate app not receiving incoming texts:**
+- Ensure SMS permissions are granted (see Phone Setup above)
+- Verify SMS-Gate is set as the default SMS app, or at minimum has notification access
